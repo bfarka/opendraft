@@ -1,17 +1,31 @@
 package main
 
 import (
-	"bytes"
-	"strings"
+	"context"
 	"testing"
 )
 
-func TestRun(t *testing.T) {
-	var buf bytes.Buffer
-	if err := run(&buf); err != nil {
-		t.Fatalf("run() returned unexpected error: %v", err)
+func TestMockAdapters(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	hr := &mockHRSource{}
+	hrCh, err := hr.Scan(ctx)
+	if err != nil {
+		t.Fatalf("mockHRSource.Scan error: %v", err)
 	}
-	if !strings.Contains(buf.String(), "opendraft") {
-		t.Fatalf("expected output to contain %q, got %q", "opendraft", buf.String())
+	dev := <-hrCh
+	if dev.ID != "mock-tickr" {
+		t.Fatalf("unexpected mock HR device: %+v", dev)
+	}
+
+	fan := &mockFanDiscoverer{}
+	fanCh, err := fan.Scan(ctx)
+	if err != nil {
+		t.Fatalf("mockFanDiscoverer.Scan error: %v", err)
+	}
+	fdev := <-fanCh
+	if fdev.ID != "shellydimmer2-mock01" {
+		t.Fatalf("unexpected mock fan device: %+v", fdev)
 	}
 }

@@ -8,4 +8,9 @@ Use [`_template.md`](_template.md) when adding a new feature (`NNN-short-name.md
 
 | ID | Feature | Status | Spec |
 | --- | --- | --- | --- |
-| — | *No features defined yet* | — | — |
+| 001 | BLE Heart Rate Source | Implemented | [001-ble-hr-source.md](001-ble-hr-source.md) |
+| 002 | Shelly Dimmer mDNS & HTTP Controller | Implemented | [002-shelly-mdns-dimmer.md](002-shelly-mdns-dimmer.md) |
+| 003 | Fan Control Loop & Linear HR Mapping | Implemented | [003-fan-control-loop.md](003-fan-control-loop.md) |
+| 004 | Terminal User Interface (TUI) & Config | Implemented | [004-tui.md](004-tui.md) |
+| 005 | Saved Hardware Auto-Connect & Scan Button | Implemented | [005-saved-hardware-autoconnect.md](005-saved-hardware-autoconnect.md) |
+| 006 | 120s HR Percentile Window & Dashboard Visualization | Implemented | [006-hr-percentile-window.md](006-hr-percentile-window.md) |
