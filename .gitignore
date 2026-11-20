@@ -1,0 +1,25 @@
+# Binaries & build artifacts
+/bin/
+/dist/
+/opendraft
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test & coverage
+*.test
+*.out
+coverage.txt
+
+# Environment & local config
+.env
+.env.*
+
+# IDE & OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
