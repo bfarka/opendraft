@@ -94,6 +94,16 @@ Settings are saved automatically to `~/.config/opendraft/config.json`:
 - **[Feature Specifications](docs/features/README.md)** — All features are specified in `docs/features/` before or alongside implementation.
 - **[AGENTS.md](AGENTS.md)** — Conventions and workflow for AI coding agents and contributors.
 
+## Contributing
+
+Contributions for **additional hardware, protocols, and features are very welcome**!
+
+Because `opendraft` separates domain interfaces in [`internal/domain/domain.go`](internal/domain/domain.go) from hardware adapters, it's straightforward to add:
+- **Other fan / dimmer backends** (`domain.FanDiscoverer` + `domain.FanController`) — e.g. Tasmota, ESPHome, MQTT, Home Assistant, smart plugs, or PWM controllers.
+- **Other metric sources** (`domain.HeartRateSource` or new mappers) — e.g. ANT+ straps, smart trainer power/speed (FTMS), or custom fan curves (`domain.SpeedMapper`).
+
+To contribute, start with a short feature spec in `docs/features/` using [`docs/features/_template.md`](docs/features/_template.md), include table-driven unit tests, and run `go vet ./...` and `go test -race ./...` before opening a PR.
+
 ## License
 
 [MIT](LICENSE)
