@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.0](https://github.com/bfarka/opendraft/compare/v1.3.1...v1.4.0) (2026-11-21)
+
+
+### Features
+
+* add WebUI and display application version in TUI & WebUI ([d30bdb2](https://github.com/bfarka/opendraft/commit/d30bdb24a8ec68b773bab128e74668aea252b0da))
+* display application version in TUI ([34b3d54](https://github.com/bfarka/opendraft/commit/34b3d54561f4fd85a9e3af5fbf1e4bb9af899731))
+* **web:** display application version in WebUI ([67fb010](https://github.com/bfarka/opendraft/commit/67fb01054729bd5c80ec2c469c3303d6b579b344))
+
 ## [1.3.1](https://github.com/bfarka/opendraft/compare/v1.3.0...v1.3.1) (2026-11-21)
 
 
