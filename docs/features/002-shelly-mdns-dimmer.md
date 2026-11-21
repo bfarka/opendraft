@@ -2,7 +2,7 @@
 
 - **Status:** Implemented
 - **Created:** 2026-11-20
-- **Updated:** 2026-11-20
+- **Updated:** 2026-11-21
 
 ## Problem
 
@@ -15,7 +15,7 @@ As an indoor cyclist, I want `opendraft` to automatically discover my Shelly Dim
 ## Acceptance Criteria
 
 - [x] Define a hardware-agnostic `domain.FanController` interface (`SetSpeed`, `Off`, `Info`) and `domain.FanDiscoverer` interface.
-- [x] Discover Shelly devices via mDNS (`_http._tcp` and `_shelly._tcp`, matching `shelly*` instances/hosts).
+- [x] Discover Shelly devices via mDNS (`_http._tcp` and `_shelly._tcp`, matching `shelly*` instances/hosts/TXT records) and filter to dimmer models only (via `/shelly` HTTP capability probe with mDNS name/TXT fallback).
 - [x] Control Shelly Dimmer 2 via local HTTP GET (`/light/0?turn=on&brightness=X` and `/light/0?turn=off`), with Gen2 `/rpc/Light.Set` fallback.
 - [x] Unit tests for mDNS entry parsing and HTTP client behavior.
 
@@ -23,7 +23,7 @@ As an indoor cyclist, I want `opendraft` to automatically discover my Shelly Dim
 
 - `internal/domain`: `FanDevice`, `FanDiscoverer`, `FanController`.
 - `internal/fan/shelly`:
-  - `discovery.go`: mDNS `_http._tcp` & `_shelly._tcp` browser.
+  - `discovery.go`: mDNS `_http._tcp` & `_shelly._tcp` browser with `/shelly` HTTP dimmer verification (`SHDM-1`/`SHDM-2`, Gen2/Gen3 dimmer `app`/`model`) and mDNS name/TXT fallback.
   - `client.go`: Gen1 `/light/0` & Gen2 `/rpc/Light.Set` HTTP client.
 
 ## Out of Scope
