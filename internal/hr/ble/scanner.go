@@ -200,29 +200,58 @@ func (s *Source) Connect(ctx context.Context, deviceID string) (<-chan domain.HR
 	s.connected = &dev
 	s.mu.Unlock()
 
-	out := make(chan domain.HRReading, 16)
+	stream := newHRStream(16)
 	if err := hrChar.EnableNotifications(func(buf []byte) {
 		bpm, parseErr := ParseHeartRateMeasurement(buf)
 		if parseErr != nil {
 			return
 		}
-		select {
-		case out <- domain.HRReading{BPM: bpm, Timestamp: time.Now()}:
-		default:
-		}
+		stream.send(domain.HRReading{BPM: bpm, Timestamp: time.Now()})
 	}); err != nil {
 		_ = dev.Disconnect()
-		close(out)
+		stream.close()
 		return nil, fmt.Errorf("enable HR notifications: %w", err)
 	}
 
 	go func() {
 		<-ctx.Done()
+		_ = hrChar.EnableNotifications(nil)
 		_ = dev.Disconnect()
-		close(out)
+		stream.close()
 	}()
 
-	return out, nil
+	return stream.ch, nil
+}
+
+type hrStream struct {
+	ch     chan domain.HRReading
+	mu     sync.Mutex
+	closed bool
+}
+
+func newHRStream(bufSize int) *hrStream {
+	return &hrStream{ch: make(chan domain.HRReading, bufSize)}
+}
+
+func (s *hrStream) send(r domain.HRReading) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
+	}
+	select {
+	case s.ch <- r:
+	default:
+	}
+}
+
+func (s *hrStream) close() {
+	s.mu.Lock()
+	if !s.closed {
+		s.closed = true
+		close(s.ch)
+	}
+	s.mu.Unlock()
 }
 
 // Close disconnects any active BLE peripheral.
