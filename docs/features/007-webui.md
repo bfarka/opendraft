@@ -2,7 +2,7 @@
 
 - **Status:** Implemented
 - **Created:** 2026-11-20
-- **Updated:** 2026-11-20
+- **Updated:** 2026-11-21
 
 ## Problem
 
@@ -14,7 +14,7 @@ As an indoor cyclist, I want a local WebUI served by `opendraft` so that I can m
 
 ## Acceptance Criteria
 
-- [x] `opendraft` starts an embedded HTTP server on `--web-addr` (default `:8080`, empty string disables it) alongside the TUI, or standalone with `--headless` (useful with `--mock` or saved devices), and displays the resolved LAN URL in the TUI.
+- [x] `opendraft` starts an embedded HTTP server on `--web-port` / `--web-addr` (default port `8080`, configurable via `web_port` in `config.json`; `0` or empty `--web-addr ""` disables it) alongside the TUI, or standalone with `--headless` (useful with `--mock` or saved devices), and displays the resolved LAN URL in the TUI. If WebUI is enabled and the port is already in use, `opendraft` logs an error message and exits with a non-zero status.
 - [x] `GET /api/state` returns a JSON snapshot of the live control loop state, rolling HR history, curve configuration, and connected/selected HR & fan devices.
 - [x] `GET /api/events` streams live state updates via Server-Sent Events (SSE) whenever readings/state change (and a 2s heartbeat).
 - [x] Control endpoints (`POST /api/start`, `POST /api/stop`, `POST /api/mode`, `POST /api/speed`, `POST /api/curve`) allow starting/stopping the fan, switching AUTO/MANUAL, setting manual speed (0–100%), and updating + persisting the HR-to-fan curve & percentile window.
@@ -32,7 +32,7 @@ As an indoor cyclist, I want a local WebUI served by `opendraft` so that I can m
 - **`internal/web/server.go`**: Standard-library `net/http` server bound via `net.Listen("tcp4", addr)` (IPv4-only for reliable LAN reachability from mobile devices on macOS) with embedded static assets (`//go:embed static/*`), JSON API endpoints, and SSE `/api/events` endpoint.
 - **`internal/web/static/`**: Vanilla HTML, CSS, and JS (`index.html`, `style.css`, `app.js`) with no build step or external CDN dependencies.
 - **`internal/tui/model.go`**: Optional `*web.Bridge` hook so TUI updates (`HandleHR`, `CheckTimeout`, device selection, curve edits) notify the WebUI in real time, and WebUI curve edits stay synced with `m.cfg`.
-- **`cmd/opendraft/main.go`**: Add `--web-addr` (default `:8080`) and `--headless` (run without TUI, auto-connecting to saved/mock devices).
+- **`cmd/opendraft/main.go`**: Add `--web-port` (overrides `config.WebPort`, default `8080`), `--web-addr` (default `:8080`), and `--headless` (run without TUI, auto-connecting to saved/mock devices), failing fast with a logged error if the WebUI port is already in use.
 
 ## Out of Scope
 

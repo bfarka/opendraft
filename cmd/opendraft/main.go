@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -33,12 +35,23 @@ func run(args []string) error {
 	cfgPathFlag := fs.String("config", "", "path to config JSON file")
 	mockFlag := fs.Bool("mock", false, "use simulated BLE HR and Shelly dimmer devices (no hardware required)")
 	webAddrFlag := fs.String("web-addr", ":8080", "HTTP address for local WebUI (empty to disable)")
+	webPortFlag := fs.Int("web-port", 0, "TCP port for local WebUI (overrides config web_port; 0 disables)")
 	headlessFlag := fs.Bool("headless", false, "run without TUI (serves WebUI and auto-connects saved/mock devices)")
 	debugScanFlag := fs.Bool("debug-scan", false, "run a 5s diagnostic BLE + mDNS scan and print raw results")
 	debugHRFlag := fs.Bool("debug-hr", false, "scan for first BLE HR monitor, connect, and print BPM for 10s")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+
+	var webAddrSet, webPortSet bool
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "web-addr":
+			webAddrSet = true
+		case "web-port":
+			webPortSet = true
+		}
+	})
 
 	if *debugScanFlag {
 		return runDebugScan()
@@ -57,6 +70,11 @@ func run(args []string) error {
 	}
 
 	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return err
+	}
+
+	webAddr, err := resolveWebAddr(cfg.WebPort, *webAddrFlag, webAddrSet, *webPortFlag, webPortSet)
 	if err != nil {
 		return err
 	}
@@ -86,20 +104,19 @@ func run(args []string) error {
 
 	var bridge *web.Bridge
 	var webURL string
-	if *webAddrFlag != "" || *headlessFlag {
+	if webAddr != "" || *headlessFlag {
 		bridge = web.NewBridge(ctx, nil, cfgPath, cfg)
-		if *webAddrFlag != "" {
-			boundAddr, _, err := web.StartServer(ctx, *webAddrFlag, bridge)
+		if webAddr != "" {
+			boundAddr, _, err := web.StartServer(ctx, webAddr, bridge)
 			if err != nil {
-				if *headlessFlag {
-					return fmt.Errorf("start web server: %w", err)
+				if errors.Is(err, syscall.EADDRINUSE) {
+					return fmt.Errorf("webui port already in use (%s): %w", webAddr, err)
 				}
-				fmt.Fprintf(os.Stderr, "opendraft: webui disabled (%v)\n", err)
-			} else {
-				webURL = formatWebURL(boundAddr)
-				if *headlessFlag {
-					fmt.Printf("opendraft WebUI listening on %s\n", webURL)
-				}
+				return fmt.Errorf("start web server (%s): %w", webAddr, err)
+			}
+			webURL = formatWebURL(boundAddr)
+			if *headlessFlag {
+				fmt.Printf("opendraft WebUI listening on %s\n", webURL)
 			}
 		}
 	}
@@ -116,6 +133,38 @@ func run(args []string) error {
 		return fmt.Errorf("run TUI: %w", err)
 	}
 	return nil
+}
+
+func resolveWebAddr(cfgWebPort int, webAddr string, webAddrSet bool, webPort int, webPortSet bool) (string, error) {
+	if webPortSet {
+		if webPort < 0 || webPort > 65535 {
+			return "", fmt.Errorf("invalid --web-port %d: must be 0..65535", webPort)
+		}
+		if webPort == 0 {
+			return "", nil
+		}
+		if webAddrSet {
+			if webAddr == "" {
+				return "", nil
+			}
+			host, _, err := net.SplitHostPort(webAddr)
+			if err != nil {
+				return "", fmt.Errorf("invalid --web-addr %q: %w", webAddr, err)
+			}
+			return net.JoinHostPort(host, strconv.Itoa(webPort)), nil
+		}
+		return ":" + strconv.Itoa(webPort), nil
+	}
+	if webAddrSet {
+		return webAddr, nil
+	}
+	if cfgWebPort < 0 || cfgWebPort > 65535 {
+		return "", fmt.Errorf("invalid config web_port %d: must be 0..65535", cfgWebPort)
+	}
+	if cfgWebPort == 0 {
+		return "", nil
+	}
+	return ":" + strconv.Itoa(cfgWebPort), nil
 }
 
 func formatWebURL(addr string) string {

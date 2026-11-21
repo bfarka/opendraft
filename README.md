@@ -43,10 +43,12 @@ go run ./cmd/opendraft --headless --mock
 ### WebUI & Diagnostic Flags
 
 ```sh
-# Bind WebUI to a custom address/port (default ":8080", empty "" disables WebUI)
+# Bind WebUI to a custom port or address (default port 8080, 0 or "" disables WebUI)
+go run ./cmd/opendraft --web-port 9090
 go run ./cmd/opendraft --web-addr :9090
 
 # Disable WebUI
+go run ./cmd/opendraft --web-port 0
 go run ./cmd/opendraft --web-addr ""
 
 # Print raw BLE advertisements and Shelly mDNS entries for 5 seconds
@@ -107,7 +109,8 @@ Settings are saved automatically to `~/.config/opendraft/config.json`:
   "min_hr": 120,
   "max_hr": 165,
   "min_speed": 15,
-  "max_speed": 100
+  "max_speed": 100,
+  "web_port": 8080
 }
 ```
 
