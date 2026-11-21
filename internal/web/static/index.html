@@ -21,6 +21,7 @@
         <span id="conn-badge" class="badge badge-muted">Connecting…</span>
         <span id="run-badge" class="badge badge-muted">STOPPED</span>
         <span id="mode-badge" class="badge badge-muted">AUTO</span>
+        <button id="open-devices-btn" type="button" class="btn btn-ghost">Devices</button>
         <button id="open-thresholds-btn" type="button" class="btn btn-ghost">Thresholds</button>
       </div>
     </header>
@@ -66,7 +67,10 @@
       <section class="card card-hr" aria-labelledby="hr-heading">
         <div class="card-head">
           <h2 id="hr-heading">Heart Rate</h2>
-          <span id="hr-conn-badge" class="badge badge-muted">Disconnected</span>
+          <div class="card-head-actions">
+            <button id="card-scan-btn" type="button" class="btn btn-ghost btn-sm">Discover</button>
+            <span id="hr-conn-badge" class="badge badge-muted">Disconnected</span>
+          </div>
         </div>
 
         <div class="hr-metrics">
@@ -190,6 +194,41 @@
         <button id="save-thresholds-btn" type="submit" class="btn btn-primary">Save Thresholds</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="devices-dialog" class="devices-dialog" closedby="any" aria-labelledby="devices-dialog-title">
+    <div class="dialog-head">
+      <h2 id="devices-dialog-title">Discover Devices</h2>
+      <button id="close-devices-btn" type="button" class="btn btn-ghost" aria-label="Close device discovery dialog">Close</button>
+    </div>
+
+    <div class="discovery-toolbar">
+      <div class="discovery-actions">
+        <button id="scan-devices-btn" type="button" class="btn btn-primary" autofocus>Scan Devices</button>
+        <button id="stop-scan-btn" type="button" class="btn btn-ghost" hidden>Stop Scan</button>
+      </div>
+      <span id="scan-status-text" class="muted" aria-live="polite">Scan for nearby BLE heart rate straps and Shelly dimmers on your LAN.</span>
+    </div>
+
+    <p id="devices-error" class="dialog-error" role="status" aria-live="polite"></p>
+
+    <div class="discovery-columns">
+      <section class="discovery-pane" aria-labelledby="disc-hr-heading">
+        <div class="discovery-pane-head">
+          <h3 id="disc-hr-heading">BLE Heart Rate Monitors</h3>
+          <span id="disc-hr-badge" class="badge badge-muted">Idle</span>
+        </div>
+        <ul id="disc-hr-list" class="discovery-list"></ul>
+      </section>
+
+      <section class="discovery-pane" aria-labelledby="disc-fan-heading">
+        <div class="discovery-pane-head">
+          <h3 id="disc-fan-heading">Shelly Dimmers (mDNS)</h3>
+          <span id="disc-fan-badge" class="badge badge-muted">Idle</span>
+        </div>
+        <ul id="disc-fan-list" class="discovery-list"></ul>
+      </section>
+    </div>
   </dialog>
 
   <script src="app.js" defer></script>

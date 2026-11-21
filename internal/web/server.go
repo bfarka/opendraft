@@ -121,6 +121,51 @@ func NewHandler(bridge *Bridge) http.Handler {
 		writeJSON(w, http.StatusOK, st)
 	})
 
+	mux.HandleFunc("POST /api/scan", func(w http.ResponseWriter, r *http.Request) {
+		st, err := bridge.StartScan()
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, st)
+	})
+
+	mux.HandleFunc("POST /api/scan/stop", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, bridge.StopScan())
+	})
+
+	mux.HandleFunc("POST /api/devices/hr", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ID string `json:"id"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		st, err := bridge.ConnectHR(strings.TrimSpace(body.ID))
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, st)
+	})
+
+	mux.HandleFunc("POST /api/devices/fan", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ID string `json:"id"`
+		}
+		if err := decodeJSON(r, &body); err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		st, err := bridge.SelectFan(strings.TrimSpace(body.ID))
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, st)
+	})
+
 	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
 		panic(fmt.Sprintf("embed static fs: %v", err))
