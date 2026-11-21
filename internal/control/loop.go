@@ -127,6 +127,18 @@ func (l *Loop) SetMapper(ctx context.Context, mapper domain.SpeedMapper) Snapsho
 	return snap
 }
 
+// SetFan updates the active FanController and re-applies the current speed if running.
+func (l *Loop) SetFan(ctx context.Context, fan domain.FanController) Snapshot {
+	l.mu.Lock()
+	l.fan = fan
+	if l.running {
+		l.maybeApplyLocked(ctx, true)
+	}
+	snap := l.snapshotLocked()
+	l.mu.Unlock()
+	return snap
+}
+
 // SetWindowConfig updates the rolling window duration and percentile and re-evaluates speed in AUTO mode.
 func (l *Loop) SetWindowConfig(ctx context.Context, windowSeconds, percentile int) Snapshot {
 	l.mu.Lock()

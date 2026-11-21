@@ -47,6 +47,18 @@
     dlgWindow: $('dlg-window'),
     dlgPercentile: $('dlg-percentile'),
     dlgError: $('dlg-error'),
+    openDevicesBtn: $('open-devices-btn'),
+    cardScanBtn: $('card-scan-btn'),
+    devicesDialog: $('devices-dialog'),
+    closeDevicesBtn: $('close-devices-btn'),
+    scanDevicesBtn: $('scan-devices-btn'),
+    stopScanBtn: $('stop-scan-btn'),
+    scanStatusText: $('scan-status-text'),
+    devicesError: $('devices-error'),
+    discHrBadge: $('disc-hr-badge'),
+    discFanBadge: $('disc-fan-badge'),
+    discHrList: $('disc-hr-list'),
+    discFanList: $('disc-fan-list'),
   };
 
   let latestState = null;
@@ -161,6 +173,7 @@
     els.historyMeta.textContent = `${winSec}s window`;
     renderHistoryChart(st.history || [], st.effective_bpm, pct);
     renderCurveChart(st.curve, st.bpm, st.effective_bpm);
+    renderDiscovery(st);
   }
 
   function renderHistoryChart(history, effBpm, pct) {
@@ -373,25 +386,205 @@
     els.thresholdsDialog.showModal();
   }
 
-  els.openThresholdsBtn.addEventListener('click', openThresholdsDialog);
-  els.closeThresholdsBtn.addEventListener('click', () => els.thresholdsDialog.close());
-  els.cancelThresholdsBtn.addEventListener('click', () => els.thresholdsDialog.close());
-
-  if (!('closedBy' in HTMLDialogElement.prototype)) {
-    const outside = (e, dialog) => {
+  function enableLightDismissFallback(dialog) {
+    if ('closedBy' in HTMLDialogElement.prototype) return;
+    const outside = (e) => {
       const r = dialog.getBoundingClientRect();
       return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
     };
     let pressedOutside = false;
-    els.thresholdsDialog.addEventListener('pointerdown', (e) => {
-      pressedOutside = outside(e, els.thresholdsDialog);
+    dialog.addEventListener('pointerdown', (e) => {
+      pressedOutside = outside(e);
     });
-    els.thresholdsDialog.addEventListener('pointerup', (e) => {
-      if (pressedOutside && outside(e, els.thresholdsDialog)) {
-        els.thresholdsDialog.close();
+    dialog.addEventListener('pointerup', (e) => {
+      if (pressedOutside && outside(e)) {
+        dialog.close();
       }
     });
   }
+
+  function renderDiscovery(st) {
+    const disc = st.discovery || {};
+    const bleScanning = Boolean(disc.ble_scanning);
+    const fanScanning = Boolean(disc.fan_scanning);
+    const anyScanning = bleScanning || fanScanning;
+
+    els.scanDevicesBtn.disabled = anyScanning;
+    els.scanDevicesBtn.textContent = anyScanning ? 'Scanning…' : 'Scan Devices';
+    els.stopScanBtn.hidden = !anyScanning;
+
+    if (anyScanning) {
+      els.scanStatusText.textContent = 'Scanning BLE & Shelly mDNS (15s)…';
+    } else {
+      els.scanStatusText.textContent = 'Scan for nearby BLE heart rate straps and Shelly dimmers on your LAN.';
+    }
+
+    setBadge(els.discHrBadge, bleScanning ? 'Scanning…' : 'Idle', bleScanning ? 'brand' : 'muted');
+    setBadge(els.discFanBadge, fanScanning ? 'Scanning…' : 'Idle', fanScanning ? 'brand' : 'muted');
+
+    // HR devices list
+    els.discHrList.replaceChildren();
+    const hrs = disc.hr_devices || [];
+    if (disc.ble_error) {
+      const li = document.createElement('li');
+      li.className = 'discovery-empty';
+      li.textContent = `BLE error: ${disc.ble_error}`;
+      els.discHrList.appendChild(li);
+    } else if (hrs.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'discovery-empty';
+      li.textContent = bleScanning ? 'Listening for BLE heart rate advertisements…' : 'No BLE heart rate monitors found yet.';
+      els.discHrList.appendChild(li);
+    } else {
+      for (const dev of hrs) {
+        const li = document.createElement('li');
+        li.className = 'discovery-item';
+
+        const info = document.createElement('div');
+        info.className = 'discovery-item-info';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'discovery-item-name';
+        nameEl.textContent = dev.name || dev.id;
+        const metaEl = document.createElement('span');
+        metaEl.className = 'discovery-item-meta';
+        metaEl.textContent = `${dev.rssi} dBm`;
+        info.append(nameEl, metaEl);
+        li.appendChild(info);
+
+        const isConnected = Boolean(st.hr_device && st.hr_device.id === dev.id && st.hr_connected);
+        if (isConnected) {
+          const badge = document.createElement('span');
+          badge.className = 'badge badge-ok';
+          badge.textContent = 'Connected';
+          li.appendChild(badge);
+        } else {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-primary btn-sm';
+          btn.textContent = 'Connect';
+          btn.addEventListener('click', async () => {
+            els.devicesError.textContent = '';
+            btn.disabled = true;
+            btn.textContent = 'Connecting…';
+            try {
+              const next = await postJSON('/api/devices/hr', { id: dev.id });
+              render(next);
+            } catch (err) {
+              els.devicesError.textContent = err.message;
+              btn.disabled = false;
+              btn.textContent = 'Connect';
+            }
+          });
+          li.appendChild(btn);
+        }
+        els.discHrList.appendChild(li);
+      }
+    }
+
+    // Fan devices list
+    els.discFanList.replaceChildren();
+    const fans = disc.fan_devices || [];
+    if (disc.fan_error) {
+      const li = document.createElement('li');
+      li.className = 'discovery-empty';
+      li.textContent = `mDNS error: ${disc.fan_error}`;
+      els.discFanList.appendChild(li);
+    } else if (fans.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'discovery-empty';
+      li.textContent = fanScanning ? 'Browsing LAN via mDNS (_http._tcp / _shelly._tcp)…' : 'No Shelly dimmers found yet.';
+      els.discFanList.appendChild(li);
+    } else {
+      for (const dev of fans) {
+        const li = document.createElement('li');
+        li.className = 'discovery-item';
+
+        const info = document.createElement('div');
+        info.className = 'discovery-item-info';
+        const nameEl = document.createElement('span');
+        nameEl.className = 'discovery-item-name';
+        nameEl.textContent = dev.name || dev.id;
+        const metaEl = document.createElement('span');
+        metaEl.className = 'discovery-item-meta';
+        metaEl.textContent = dev.ip ? `${dev.ip}:${dev.port || 80}` : dev.id;
+        info.append(nameEl, metaEl);
+        li.appendChild(info);
+
+        const isSelected = Boolean(st.fan_device && st.fan_device.id === dev.id);
+        if (isSelected) {
+          const badge = document.createElement('span');
+          badge.className = 'badge badge-ok';
+          badge.textContent = 'Selected';
+          li.appendChild(badge);
+        } else {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-primary btn-sm';
+          btn.textContent = 'Select';
+          btn.addEventListener('click', async () => {
+            els.devicesError.textContent = '';
+            btn.disabled = true;
+            btn.textContent = 'Selecting…';
+            try {
+              const next = await postJSON('/api/devices/fan', { id: dev.id });
+              render(next);
+            } catch (err) {
+              els.devicesError.textContent = err.message;
+              btn.disabled = false;
+              btn.textContent = 'Select';
+            }
+          });
+          li.appendChild(btn);
+        }
+        els.discFanList.appendChild(li);
+      }
+    }
+  }
+
+  async function startDeviceScan() {
+    els.devicesError.textContent = '';
+    els.scanDevicesBtn.disabled = true;
+    try {
+      const st = await postJSON('/api/scan');
+      render(st);
+    } catch (err) {
+      els.devicesError.textContent = err.message;
+      els.scanDevicesBtn.disabled = false;
+    }
+  }
+
+  function openDevicesDialog(autoScan) {
+    els.devicesError.textContent = '';
+    if (latestState) {
+      renderDiscovery(latestState);
+    }
+    els.devicesDialog.showModal();
+    const disc = latestState && latestState.discovery;
+    const scanning = disc && (disc.ble_scanning || disc.fan_scanning);
+    const empty = !disc || ((disc.hr_devices || []).length === 0 && (disc.fan_devices || []).length === 0);
+    if ((autoScan || empty) && !scanning) {
+      startDeviceScan();
+    }
+  }
+
+  els.openThresholdsBtn.addEventListener('click', openThresholdsDialog);
+  els.closeThresholdsBtn.addEventListener('click', () => els.thresholdsDialog.close());
+  els.cancelThresholdsBtn.addEventListener('click', () => els.thresholdsDialog.close());
+  enableLightDismissFallback(els.thresholdsDialog);
+
+  els.openDevicesBtn.addEventListener('click', () => openDevicesDialog(false));
+  els.cardScanBtn.addEventListener('click', () => openDevicesDialog(true));
+  els.closeDevicesBtn.addEventListener('click', () => els.devicesDialog.close());
+  els.scanDevicesBtn.addEventListener('click', startDeviceScan);
+  els.stopScanBtn.addEventListener('click', async () => {
+    els.devicesError.textContent = '';
+    try {
+      render(await postJSON('/api/scan/stop'));
+    } catch (err) {
+      els.devicesError.textContent = err.message;
+    }
+  });
+  enableLightDismissFallback(els.devicesDialog);
 
   els.thresholdsDialogForm.addEventListener('submit', async (e) => {
     e.preventDefault();

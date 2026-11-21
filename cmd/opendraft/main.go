@@ -106,6 +106,9 @@ func run(args []string) error {
 	var webURL string
 	if webAddr != "" || *headlessFlag {
 		bridge = web.NewBridge(ctx, nil, cfgPath, cfg)
+		bridge.SetHardware(hrSource, fanDisc, func(dev domain.FanDevice) domain.FanController {
+			return fanFactory(dev)
+		})
 		if webAddr != "" {
 			boundAddr, _, err := web.StartServer(ctx, webAddr, bridge)
 			if err != nil {
@@ -129,6 +132,16 @@ func run(args []string) error {
 		WithWebBridge(bridge).
 		WithWebURL(webURL)
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithContext(ctx))
+	if bridge != nil {
+		bridge.SetOnDeviceSync(func(hr *domain.HRDevice, fan *domain.FanDevice, c config.Config, fanCtrl domain.FanController) {
+			p.Send(tui.WebDeviceSyncMsg{
+				HR:      hr,
+				Fan:     fan,
+				Cfg:     c,
+				FanCtrl: fanCtrl,
+			})
+		})
+	}
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("run TUI: %w", err)
 	}

@@ -18,13 +18,15 @@ As an indoor cyclist, I want a local WebUI served by `opendraft` so that I can m
 - [x] `GET /api/state` returns a JSON snapshot of the live control loop state, rolling HR history, curve configuration, and connected/selected HR & fan devices.
 - [x] `GET /api/events` streams live state updates via Server-Sent Events (SSE) whenever readings/state change (and a 2s heartbeat).
 - [x] Control endpoints (`POST /api/start`, `POST /api/stop`, `POST /api/mode`, `POST /api/speed`, `POST /api/curve`) allow starting/stopping the fan, switching AUTO/MANUAL, setting manual speed (0–100%), and updating + persisting the HR-to-fan curve & percentile window.
+- [x] Device discovery & selection endpoints (`POST /api/scan`, `POST /api/scan/stop`, `POST /api/devices/hr`, `POST /api/devices/fan`) allow scanning for BLE HR monitors and Shelly dimmers (with live results streamed via `State.Discovery` over `/api/state` and `/api/events`), connecting to a BLE HR monitor, selecting a Shelly dimmer, and persisting hardware selections to `config.json`.
 - [x] Embedded single-page WebUI (`GET /`) displays:
   - Prominent fan speed gauge / progress bar (applied % vs target %, running/stopped badge, AUTO/MANUAL badge)
   - Live BPM, effective percentile BPM (with warm-up count), and connected BLE/Fan device info
+  - Device Discovery modal (`Devices` / `Scan` button) to scan for BLE HR monitors and Shelly dimmers and connect/select them directly from the browser
   - Interactive controls: Start/Stop button, Auto/Manual toggle, Manual speed slider (0–100%), and Curve & Window settings form
   - SVG charts for rolling HR history (with percentile line) and HR-to-fan curve (with live & effective HR markers)
   - Automatic light/dark theme support (`color-scheme: light dark`) and responsive layout
-- [x] Unit tests cover the HTTP handlers, SSE stream, state bridge thread-safety, and curve validation.
+- [x] Unit tests cover the HTTP handlers, SSE stream, state bridge thread-safety, device discovery/selection, and curve validation.
 
 ## Design & Architecture
 
@@ -38,4 +40,3 @@ As an indoor cyclist, I want a local WebUI served by `opendraft` so that I can m
 
 - Authentication / TLS (intended for localhost or trusted LAN).
 - Multi-user or cloud relay.
-- Device discovery/pairing UI in the browser (use TUI for initial BLE/mDNS pairing).

@@ -234,3 +234,173 @@ func TestSSEStreamReceivesUpdates(t *testing.T) {
 		t.Fatalf("expected updated BPM=155, got %d", second.BPM)
 	}
 }
+
+type stubHRSource struct {
+	devices []domain.HRDevice
+}
+
+func (s *stubHRSource) Scan(_ context.Context) (<-chan domain.HRDevice, error) {
+	ch := make(chan domain.HRDevice, len(s.devices))
+	for _, d := range s.devices {
+		ch <- d
+	}
+	close(ch)
+	return ch, nil
+}
+
+func (s *stubHRSource) Connect(ctx context.Context, _ string) (<-chan domain.HRReading, error) {
+	ch := make(chan domain.HRReading, 1)
+	ch <- domain.HRReading{BPM: 148, Timestamp: time.Now()}
+	go func() {
+		<-ctx.Done()
+		close(ch)
+	}()
+	return ch, nil
+}
+
+func (s *stubHRSource) Close() error { return nil }
+
+type stubFanDiscoverer struct {
+	devices []domain.FanDevice
+}
+
+func (s *stubFanDiscoverer) Scan(_ context.Context) (<-chan domain.FanDevice, error) {
+	ch := make(chan domain.FanDevice, len(s.devices))
+	for _, d := range s.devices {
+		ch <- d
+	}
+	close(ch)
+	return ch, nil
+}
+
+func TestWebUIDiscoveryAndSelection(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.Default()
+	mapper := control.LinearMapper{
+		MinHR:    cfg.MinHR,
+		MaxHR:    cfg.MaxHR,
+		MinSpeed: cfg.MinSpeed,
+		MaxSpeed: cfg.MaxSpeed,
+	}
+	loop := control.NewLoop(mapper, nil)
+	bridge := NewBridge(ctx, loop, cfgPath, cfg)
+	h := NewHandler(bridge)
+
+	// Without hardware configured, /api/scan fails cleanly.
+	req := httptest.NewRequest(http.MethodPost, "/api/scan", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("POST /api/scan without hardware = %d, want 400", rec.Code)
+	}
+
+	hrSrc := &stubHRSource{
+		devices: []domain.HRDevice{{ID: "hr-tickr-1", Name: "TICKR FIT 1", RSSI: -54}},
+	}
+	fanDisc := &stubFanDiscoverer{
+		devices: []domain.FanDevice{{ID: "shelly-dimmer-1", Name: "Shelly Dimmer 1", IP: "192.168.1.88", Port: 80, Model: "shelly"}},
+	}
+	var newFan *stubFan
+	bridge.SetHardware(hrSrc, fanDisc, func(dev domain.FanDevice) domain.FanController {
+		newFan = &stubFan{dev: dev}
+		return newFan
+	})
+
+	var syncCalls int
+	bridge.SetOnDeviceSync(func(_ *domain.HRDevice, _ *domain.FanDevice, _ config.Config, _ domain.FanController) {
+		syncCalls++
+	})
+
+	// Trigger scan
+	req = httptest.NewRequest(http.MethodPost, "/api/scan", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/scan status = %d, want 200 (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Wait briefly for scan goroutines to populate discovery results
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		st := bridge.Snapshot()
+		if len(st.Discovery.HRDevices) == 1 && len(st.Discovery.FanDevices) == 1 && !st.Discovery.BLEScanning && !st.Discovery.FanScanning {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	st := bridge.Snapshot()
+	if len(st.Discovery.HRDevices) != 1 || st.Discovery.HRDevices[0].ID != "hr-tickr-1" {
+		t.Fatalf("unexpected discovered HR devices: %+v", st.Discovery.HRDevices)
+	}
+	if len(st.Discovery.FanDevices) != 1 || st.Discovery.FanDevices[0].ID != "shelly-dimmer-1" {
+		t.Fatalf("unexpected discovered fan devices: %+v", st.Discovery.FanDevices)
+	}
+
+	// Select fan dimmer
+	req = httptest.NewRequest(http.MethodPost, "/api/devices/fan", bytes.NewBufferString(`{"id":"shelly-dimmer-1"}`))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/devices/fan status = %d, want 200 (%s)", rec.Code, rec.Body.String())
+	}
+	var fanState State
+	if err := json.Unmarshal(rec.Body.Bytes(), &fanState); err != nil {
+		t.Fatalf("decode fan state: %v", err)
+	}
+	if fanState.FanDevice == nil || fanState.FanDevice.ID != "shelly-dimmer-1" {
+		t.Fatalf("expected FanDevice shelly-dimmer-1, got %+v", fanState.FanDevice)
+	}
+	if newFan == nil {
+		t.Fatalf("expected fanFactory to be invoked")
+	}
+
+	// Unknown fan returns 400
+	req = httptest.NewRequest(http.MethodPost, "/api/devices/fan", bytes.NewBufferString(`{"id":"missing"}`))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("POST /api/devices/fan unknown = %d, want 400", rec.Code)
+	}
+
+	// Connect HR monitor
+	req = httptest.NewRequest(http.MethodPost, "/api/devices/hr", bytes.NewBufferString(`{"id":"hr-tickr-1"}`))
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/devices/hr status = %d, want 200 (%s)", rec.Code, rec.Body.String())
+	}
+
+	// Wait for streamed HR reading (148 BPM) to arrive in loop
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if bridge.Snapshot().BPM == 148 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := bridge.Snapshot().BPM; got != 148 {
+		t.Fatalf("expected streamed BPM=148, got %d", got)
+	}
+
+	saved, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("load saved config: %v", err)
+	}
+	if saved.BLEDeviceID != "hr-tickr-1" || saved.FanDeviceID != "shelly-dimmer-1" || saved.FanHost != "192.168.1.88:80" {
+		t.Fatalf("unexpected saved config: %+v", saved)
+	}
+	if syncCalls != 2 {
+		t.Fatalf("expected 2 onDeviceSync calls, got %d", syncCalls)
+	}
+
+	// Stop scan endpoint
+	req = httptest.NewRequest(http.MethodPost, "/api/scan/stop", nil)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /api/scan/stop status = %d, want 200", rec.Code)
+	}
+}

@@ -50,6 +50,14 @@ type hrClosedMsg struct{}
 
 type tickMsg time.Time
 
+// WebDeviceSyncMsg updates TUI device state when a device is connected or selected from the WebUI.
+type WebDeviceSyncMsg struct {
+	HR      *domain.HRDevice
+	Fan     *domain.FanDevice
+	Cfg     config.Config
+	FanCtrl domain.FanController
+}
+
 type scansStartedMsg struct {
 	bleCh  <-chan domain.HRDevice
 	bleErr error
@@ -228,6 +236,9 @@ func waitHRReading(ch <-chan domain.HRReading) tea.Cmd {
 }
 
 func (m *Model) connectHR(dev domain.HRDevice) tea.Cmd {
+	if m.webBridge != nil {
+		m.webBridge.CancelHRStream()
+	}
 	if m.hrCancel != nil {
 		m.hrCancel()
 	}
@@ -385,6 +396,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loop.CheckTimeout(m.ctx)
 		m.notifyWeb()
 		return m, tickEverySecond()
+
+	case WebDeviceSyncMsg:
+		if msg.HR != nil {
+			if m.hrCancel != nil {
+				m.hrCancel()
+				m.hrCancel = nil
+				m.hrCh = nil
+			}
+			cp := *msg.HR
+			m.selectedHR = &cp
+		}
+		if msg.Fan != nil {
+			cp := *msg.Fan
+			m.selectedFan = &cp
+		}
+		if msg.FanCtrl != nil {
+			m.fanCtrl = msg.FanCtrl
+		}
+		m.cfg = msg.Cfg
+		if m.selectedHR != nil && m.selectedFan != nil {
+			m.view = viewDashboard
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.view == viewDiscovery {

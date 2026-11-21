@@ -31,41 +31,84 @@ type DeviceInfo struct {
 	Model string `json:"model,omitempty"`
 }
 
+// DiscoveredHR describes a BLE heart rate monitor found during scanning.
+type DiscoveredHR struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	RSSI int16  `json:"rssi"`
+}
+
+// DiscoveredFan describes a Shelly dimmer found during mDNS scanning.
+type DiscoveredFan struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	IP    string `json:"ip"`
+	Port  int    `json:"port"`
+	Model string `json:"model"`
+}
+
+// DiscoveryState holds active scan flags and discovered device lists.
+type DiscoveryState struct {
+	BLEScanning bool            `json:"ble_scanning"`
+	FanScanning bool            `json:"fan_scanning"`
+	HRDevices   []DiscoveredHR  `json:"hr_devices"`
+	FanDevices  []DiscoveredFan `json:"fan_devices"`
+	BLEError    string          `json:"ble_error,omitempty"`
+	FanError    string          `json:"fan_error,omitempty"`
+}
+
+// FanFactory constructs a FanController for a selected FanDevice.
+type FanFactory func(dev domain.FanDevice) domain.FanController
+
 // State is the JSON-serializable snapshot exposed by the WebUI API and SSE stream.
 type State struct {
-	Running       bool        `json:"running"`
-	Mode          string      `json:"mode"`
-	BPM           uint8       `json:"bpm"`
-	EffectiveBPM  uint8       `json:"effective_bpm"`
-	WindowCount   int         `json:"window_count"`
-	WindowSeconds int         `json:"window_seconds"`
-	Percentile    int         `json:"percentile"`
-	TargetSpeed   int         `json:"target_speed"`
-	AppliedSpeed  int         `json:"applied_speed"`
-	HRConnected   bool        `json:"hr_connected"`
-	LastHRAt      *time.Time  `json:"last_hr_at,omitempty"`
-	LastErr       string      `json:"last_err,omitempty"`
-	History       []int       `json:"history"`
-	Curve         CurveConfig `json:"curve"`
-	HRDevice      *DeviceInfo `json:"hr_device,omitempty"`
-	FanDevice     *DeviceInfo `json:"fan_device,omitempty"`
-	StatusMsg     string      `json:"status_msg,omitempty"`
-	ErrMsg        string      `json:"err_msg,omitempty"`
-	UpdatedAt     time.Time   `json:"updated_at"`
+	Running       bool           `json:"running"`
+	Mode          string         `json:"mode"`
+	BPM           uint8          `json:"bpm"`
+	EffectiveBPM  uint8          `json:"effective_bpm"`
+	WindowCount   int            `json:"window_count"`
+	WindowSeconds int            `json:"window_seconds"`
+	Percentile    int            `json:"percentile"`
+	TargetSpeed   int            `json:"target_speed"`
+	AppliedSpeed  int            `json:"applied_speed"`
+	HRConnected   bool           `json:"hr_connected"`
+	LastHRAt      *time.Time     `json:"last_hr_at,omitempty"`
+	LastErr       string         `json:"last_err,omitempty"`
+	History       []int          `json:"history"`
+	Curve         CurveConfig    `json:"curve"`
+	HRDevice      *DeviceInfo    `json:"hr_device,omitempty"`
+	FanDevice     *DeviceInfo    `json:"fan_device,omitempty"`
+	Discovery     DiscoveryState `json:"discovery"`
+	StatusMsg     string         `json:"status_msg,omitempty"`
+	ErrMsg        string         `json:"err_msg,omitempty"`
+	UpdatedAt     time.Time      `json:"updated_at"`
 }
 
 // Bridge coordinates thread-safe state access and control actions between the app and HTTP server.
 type Bridge struct {
-	mu        sync.RWMutex
-	ctx       context.Context
-	loop      *control.Loop
-	cfgPath   string
-	cfg       config.Config
-	hrDev     *domain.HRDevice
-	fanDev    *domain.FanDevice
-	statusMsg string
-	errMsg    string
-	subs      map[chan State]struct{}
+	mu             sync.RWMutex
+	ctx            context.Context
+	loop           *control.Loop
+	cfgPath        string
+	cfg            config.Config
+	hrDev          *domain.HRDevice
+	fanDev         *domain.FanDevice
+	hrSource       domain.HeartRateSource
+	fanDisc        domain.FanDiscoverer
+	fanFactory     FanFactory
+	onDeviceSync   func(hr *domain.HRDevice, fan *domain.FanDevice, cfg config.Config, fanCtrl domain.FanController)
+	scanCancel     context.CancelFunc
+	scanGen        uint64
+	bleScanning    bool
+	fanScanning    bool
+	bleErr         string
+	fanErr         string
+	discoveredHR   []domain.HRDevice
+	discoveredFan  []domain.FanDevice
+	hrStreamCancel context.CancelFunc
+	statusMsg      string
+	errMsg         string
+	subs           map[chan State]struct{}
 }
 
 // NewBridge creates a Bridge for the given control loop and configuration.
@@ -142,6 +185,26 @@ func (b *Bridge) Snapshot() State {
 	fanDev := b.fanDev
 	statusMsg := b.statusMsg
 	errMsg := b.errMsg
+	bleScanning := b.bleScanning
+	fanScanning := b.fanScanning
+	bleErr := b.bleErr
+	fanErr := b.fanErr
+	discHR := make([]DiscoveredHR, len(b.discoveredHR))
+	for i, d := range b.discoveredHR {
+		name := d.Name
+		if name == "" {
+			name = d.ID
+		}
+		discHR[i] = DiscoveredHR{ID: d.ID, Name: name, RSSI: d.RSSI}
+	}
+	discFan := make([]DiscoveredFan, len(b.discoveredFan))
+	for i, d := range b.discoveredFan {
+		name := d.Name
+		if name == "" {
+			name = d.ID
+		}
+		discFan[i] = DiscoveredFan{ID: d.ID, Name: name, IP: d.IP, Port: d.Port, Model: d.Model}
+	}
 	b.mu.RUnlock()
 
 	s := State{
@@ -153,6 +216,14 @@ func (b *Bridge) Snapshot() State {
 			MaxSpeed:      cfg.MaxSpeed,
 			WindowSeconds: cfg.WindowSeconds,
 			Percentile:    cfg.Percentile,
+		},
+		Discovery: DiscoveryState{
+			BLEScanning: bleScanning,
+			FanScanning: fanScanning,
+			HRDevices:   discHR,
+			FanDevices:  discFan,
+			BLEError:    bleErr,
+			FanError:    fanErr,
 		},
 		StatusMsg: statusMsg,
 		ErrMsg:    errMsg,
@@ -353,6 +424,347 @@ func (b *Bridge) UpdateCurve(c CurveConfig) (State, error) {
 		loop.SetWindowConfig(ctx, cfg.WindowSeconds, cfg.Percentile)
 	}
 
+	b.Notify()
+	return b.Snapshot(), nil
+}
+
+// SetHardware configures the BLE HR source, fan discoverer, and fan controller factory used by WebUI discovery.
+func (b *Bridge) SetHardware(hrSource domain.HeartRateSource, fanDisc domain.FanDiscoverer, fanFactory FanFactory) {
+	b.mu.Lock()
+	b.hrSource = hrSource
+	b.fanDisc = fanDisc
+	b.fanFactory = fanFactory
+	b.mu.Unlock()
+}
+
+// SetOnDeviceSync registers a callback invoked when a device is connected or selected via the WebUI.
+func (b *Bridge) SetOnDeviceSync(fn func(hr *domain.HRDevice, fan *domain.FanDevice, cfg config.Config, fanCtrl domain.FanController)) {
+	b.mu.Lock()
+	b.onDeviceSync = fn
+	b.mu.Unlock()
+}
+
+// CancelHRStream cancels any active HR reading stream started by Bridge.ConnectHR.
+func (b *Bridge) CancelHRStream() {
+	b.mu.Lock()
+	cancel := b.hrStreamCancel
+	b.hrStreamCancel = nil
+	b.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// StartScan starts a 15-second BLE HR and Shelly mDNS discovery scan and streams results via SSE.
+func (b *Bridge) StartScan() (State, error) {
+	b.mu.Lock()
+	hrSource := b.hrSource
+	fanDisc := b.fanDisc
+	if hrSource == nil && fanDisc == nil {
+		b.mu.Unlock()
+		return State{}, fmt.Errorf("device discovery is not configured")
+	}
+	prevCancel := b.scanCancel
+	b.scanGen++
+	gen := b.scanGen
+	scanCtx, cancel := context.WithTimeout(b.ctx, 15*time.Second)
+	b.scanCancel = cancel
+	b.discoveredHR = nil
+	b.discoveredFan = nil
+	b.bleErr = ""
+	b.fanErr = ""
+	b.bleScanning = hrSource != nil
+	b.fanScanning = fanDisc != nil
+	b.mu.Unlock()
+
+	if prevCancel != nil {
+		prevCancel()
+	}
+	b.Notify()
+
+	var bleCh <-chan domain.HRDevice
+	var bleErr error
+	if hrSource != nil {
+		bleCh, bleErr = hrSource.Scan(scanCtx)
+	}
+
+	var fanCh <-chan domain.FanDevice
+	var fanErr error
+	if fanDisc != nil {
+		fanCh, fanErr = fanDisc.Scan(scanCtx)
+	}
+
+	b.mu.Lock()
+	if b.scanGen != gen {
+		b.mu.Unlock()
+		cancel()
+		return b.Snapshot(), nil
+	}
+	if bleErr != nil {
+		b.bleScanning = false
+		b.bleErr = bleErr.Error()
+	} else if bleCh == nil {
+		b.bleScanning = false
+	}
+	if fanErr != nil {
+		b.fanScanning = false
+		b.fanErr = fanErr.Error()
+	} else if fanCh == nil {
+		b.fanScanning = false
+	}
+	b.mu.Unlock()
+	b.Notify()
+
+	if bleCh != nil {
+		go b.consumeBLEScan(gen, bleCh)
+	}
+	if fanCh != nil {
+		go b.consumeFanScan(gen, fanCh)
+	}
+
+	return b.Snapshot(), nil
+}
+
+func (b *Bridge) consumeBLEScan(gen uint64, ch <-chan domain.HRDevice) {
+	for dev := range ch {
+		b.mu.Lock()
+		if b.scanGen != gen {
+			b.mu.Unlock()
+			return
+		}
+		found := false
+		for i := range b.discoveredHR {
+			if b.discoveredHR[i].ID == dev.ID {
+				b.discoveredHR[i] = dev
+				found = true
+				break
+			}
+		}
+		if !found {
+			b.discoveredHR = append(b.discoveredHR, dev)
+		}
+		b.mu.Unlock()
+		b.Notify()
+	}
+	b.mu.Lock()
+	if b.scanGen == gen {
+		b.bleScanning = false
+	}
+	b.mu.Unlock()
+	b.Notify()
+}
+
+func (b *Bridge) consumeFanScan(gen uint64, ch <-chan domain.FanDevice) {
+	for dev := range ch {
+		b.mu.Lock()
+		if b.scanGen != gen {
+			b.mu.Unlock()
+			return
+		}
+		found := false
+		for i := range b.discoveredFan {
+			if b.discoveredFan[i].ID == dev.ID {
+				b.discoveredFan[i] = dev
+				found = true
+				break
+			}
+		}
+		if !found {
+			b.discoveredFan = append(b.discoveredFan, dev)
+		}
+		b.mu.Unlock()
+		b.Notify()
+	}
+	b.mu.Lock()
+	if b.scanGen == gen {
+		b.fanScanning = false
+	}
+	b.mu.Unlock()
+	b.Notify()
+}
+
+// StopScan cancels any active discovery scan and notifies subscribers.
+func (b *Bridge) StopScan() State {
+	b.mu.Lock()
+	cancel := b.scanCancel
+	b.scanCancel = nil
+	b.scanGen++
+	b.bleScanning = false
+	b.fanScanning = false
+	b.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	b.Notify()
+	return b.Snapshot()
+}
+
+// ConnectHR connects to a BLE heart rate monitor by ID, persists it, and streams readings into the control loop.
+func (b *Bridge) ConnectHR(id string) (State, error) {
+	if id == "" {
+		return State{}, fmt.Errorf("device id is required")
+	}
+
+	b.mu.Lock()
+	hrSource := b.hrSource
+	if hrSource == nil {
+		b.mu.Unlock()
+		return State{}, fmt.Errorf("heart rate source is not configured")
+	}
+	dev := domain.HRDevice{ID: id, Name: id}
+	for _, d := range b.discoveredHR {
+		if d.ID == id {
+			dev = d
+			break
+		}
+	}
+	if dev.Name == "" {
+		dev.Name = dev.ID
+	}
+	scanCancel := b.scanCancel
+	b.scanCancel = nil
+	b.scanGen++
+	b.bleScanning = false
+	b.fanScanning = false
+	prevHRCancel := b.hrStreamCancel
+	b.hrStreamCancel = nil
+	b.mu.Unlock()
+
+	if scanCancel != nil {
+		scanCancel()
+	}
+	if prevHRCancel != nil {
+		prevHRCancel()
+	}
+
+	connCtx, cancel := context.WithCancel(b.ctx)
+	ch, err := hrSource.Connect(connCtx, dev.ID)
+	if err != nil {
+		cancel()
+		return State{}, fmt.Errorf("connect HR %s: %w", dev.ID, err)
+	}
+
+	b.mu.Lock()
+	b.hrStreamCancel = cancel
+	cp := dev
+	b.hrDev = &cp
+	b.cfg.BLEDeviceID = dev.ID
+	b.cfg.BLEDeviceName = dev.Name
+	b.errMsg = ""
+	b.statusMsg = fmt.Sprintf("Connected HR: %s", dev.Name)
+	cfg := b.cfg
+	cfgPath := b.cfgPath
+	syncFn := b.onDeviceSync
+	b.mu.Unlock()
+
+	if cfgPath != "" {
+		if err := config.Save(cfgPath, cfg); err != nil {
+			return State{}, fmt.Errorf("save config: %w", err)
+		}
+	}
+
+	go func() {
+		for {
+			select {
+			case <-connCtx.Done():
+				return
+			case r, ok := <-ch:
+				if !ok {
+					b.mu.Lock()
+					b.statusMsg = "HR stream closed"
+					b.mu.Unlock()
+					b.Notify()
+					return
+				}
+				b.mu.RLock()
+				loop := b.loop
+				ctx := b.ctx
+				b.mu.RUnlock()
+				if loop != nil {
+					loop.HandleHR(ctx, r)
+				}
+				b.Notify()
+			}
+		}
+	}()
+
+	if syncFn != nil {
+		syncFn(&cp, nil, cfg, nil)
+	}
+	b.Notify()
+	return b.Snapshot(), nil
+}
+
+// SelectFan selects a discovered Shelly dimmer by ID, updates the control loop, and persists it.
+func (b *Bridge) SelectFan(id string) (State, error) {
+	if id == "" {
+		return State{}, fmt.Errorf("device id is required")
+	}
+
+	b.mu.Lock()
+	var dev domain.FanDevice
+	found := false
+	for _, d := range b.discoveredFan {
+		if d.ID == id {
+			dev = d
+			found = true
+			break
+		}
+	}
+	if !found && b.fanDev != nil && b.fanDev.ID == id {
+		dev = *b.fanDev
+		found = true
+	}
+	if !found {
+		b.mu.Unlock()
+		return State{}, fmt.Errorf("fan device %q not found in discovery results", id)
+	}
+	factory := b.fanFactory
+	b.mu.Unlock()
+
+	var fanCtrl domain.FanController
+	if factory != nil {
+		fanCtrl = factory(dev)
+	}
+
+	b.mu.Lock()
+	cp := dev
+	b.fanDev = &cp
+	b.cfg.FanDeviceID = dev.ID
+	b.cfg.FanDeviceName = dev.Name
+	b.cfg.FanModel = dev.Model
+	if dev.IP != "" {
+		port := dev.Port
+		if port == 0 {
+			port = 80
+		}
+		b.cfg.FanHost = fmt.Sprintf("%s:%d", dev.IP, port)
+	}
+	name := dev.Name
+	if name == "" {
+		name = dev.ID
+	}
+	b.errMsg = ""
+	b.statusMsg = fmt.Sprintf("Selected Shelly: %s", name)
+	cfg := b.cfg
+	cfgPath := b.cfgPath
+	loop := b.loop
+	ctx := b.ctx
+	syncFn := b.onDeviceSync
+	b.mu.Unlock()
+
+	if cfgPath != "" {
+		if err := config.Save(cfgPath, cfg); err != nil {
+			return State{}, fmt.Errorf("save config: %w", err)
+		}
+	}
+
+	if loop != nil {
+		loop.SetFan(ctx, fanCtrl)
+	}
+	if syncFn != nil {
+		syncFn(nil, &cp, cfg, fanCtrl)
+	}
 	b.Notify()
 	return b.Snapshot(), nil
 }
