@@ -177,7 +177,7 @@ func (m Model) viewDashboardScreen() string {
 	snap := m.loop.State()
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("opendraft — Live Dashboard"))
+	b.WriteString(m.renderHeader("Live Dashboard"))
 	b.WriteString("\n")
 
 	hrName := "not connected"

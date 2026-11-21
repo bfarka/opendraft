@@ -10,6 +10,7 @@ import (
 	"github.com/bfarka/opendraft/internal/config"
 	"github.com/bfarka/opendraft/internal/control"
 	"github.com/bfarka/opendraft/internal/domain"
+	"github.com/bfarka/opendraft/internal/version"
 )
 
 type viewState int
@@ -65,6 +66,7 @@ type Model struct {
 	fanFactory FanFactory
 	cfgPath    string
 	cfg        config.Config
+	version    string
 
 	view       viewState
 	activePane discoveryPane
@@ -119,6 +121,7 @@ func NewModel(
 		fanFactory: fanFactory,
 		cfgPath:    cfgPath,
 		cfg:        cfg,
+		version:    version.String(),
 		view:       viewDiscovery,
 		activePane: paneBLE,
 		loop:       control.NewLoop(mapper, nil),
@@ -369,4 +372,12 @@ func (m Model) View() string {
 		return m.viewDiscoveryScreen()
 	}
 	return m.viewDashboardScreen()
+}
+
+func (m Model) renderHeader(screen string) string {
+	v := m.version
+	if v == "" {
+		v = "dev"
+	}
+	return titleStyle.Render(fmt.Sprintf("opendraft (%s) — %s", v, screen))
 }

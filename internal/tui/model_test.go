@@ -237,3 +237,20 @@ func TestDashboardChartsAndCurveEditorWindowPercentile(t *testing.T) {
 		t.Fatalf("expected loop updated to 60s / P75, got %+v", snap)
 	}
 }
+
+func TestVersionShownInViews(t *testing.T) {
+	m := NewModel(context.Background(), nil, nil, nil, "", config.Default())
+	if !strings.Contains(m.View(), "opendraft (dev)") {
+		t.Fatalf("expected default dev version in discovery view:\n%s", m.View())
+	}
+
+	m.version = "v1.2.3"
+	if !strings.Contains(m.View(), "opendraft (v1.2.3)") {
+		t.Fatalf("expected explicit version in discovery view:\n%s", m.View())
+	}
+
+	m.view = viewDashboard
+	if !strings.Contains(m.View(), "opendraft (v1.2.3)") {
+		t.Fatalf("expected explicit version in dashboard view:\n%s", m.View())
+	}
+}

@@ -75,7 +75,7 @@ func (m Model) updateDiscoveryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewDiscoveryScreen() string {
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("opendraft — Device Discovery"))
+	b.WriteString(m.renderHeader("Device Discovery"))
 	b.WriteString("\n")
 
 	paneWidth := 42
