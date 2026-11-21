@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/bfarka/opendraft/compare/v1.4.1...v1.5.0) (2026-11-21)
+
+
+### Features
+
+* **tui:** show live BPM next to connected HR device on discovery screen ([49011ea](https://github.com/bfarka/opendraft/commit/49011ea5f8eda9d8058e22270afb1597f889500b))
+
+
+### Bug Fixes
+
+* **ble:** allow direct connect by saved device ID without prior scan ([02cec35](https://github.com/bfarka/opendraft/commit/02cec35adc490eb8b9a4292c4ca4aa8a50e2547e))
+
 ## [1.4.1](https://github.com/bfarka/opendraft/compare/v1.4.0...v1.4.1) (2026-11-21)
 
 
