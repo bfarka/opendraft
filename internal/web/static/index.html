@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>opendraft — Fan Control</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◉</span>
+        <div>
+          <h1>opendraft</h1>
+          <p class="subtitle">HR-driven indoor fan controller</p>
+        </div>
+      </div>
+      <div class="badges" aria-live="polite">
+        <span id="conn-badge" class="badge badge-muted">Connecting…</span>
+        <span id="run-badge" class="badge badge-muted">STOPPED</span>
+        <span id="mode-badge" class="badge badge-muted">AUTO</span>
+        <button id="open-devices-btn" type="button" class="btn btn-ghost">Devices</button>
+        <button id="open-thresholds-btn" type="button" class="btn btn-ghost">Thresholds</button>
+      </div>
+    </header>
+
+    <div id="alert-banner" class="alert" role="status" hidden></div>
+
+    <main class="grid">
+      <!-- Fan Output & Controls -->
+      <section class="card card-fan" aria-labelledby="fan-heading">
+        <div class="card-head">
+          <h2 id="fan-heading">Fan Output</h2>
+          <button id="toggle-run-btn" type="button" class="btn btn-primary">Start Fan</button>
+        </div>
+
+        <div class="fan-hero">
+          <div class="fan-metric">
+            <span id="applied-speed" class="big-num">0%</span>
+            <span class="metric-sub">Applied speed · Target <strong id="target-speed">0%</strong></span>
+          </div>
+          <div class="gauge-track" aria-hidden="true">
+            <div id="fan-gauge-fill" class="gauge-fill" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="segmented" role="group" aria-label="Control mode">
+            <button id="mode-auto-btn" type="button" class="seg-btn" aria-pressed="true">Auto (HR)</button>
+            <button id="mode-manual-btn" type="button" class="seg-btn" aria-pressed="false">Manual</button>
+          </div>
+
+          <div class="slider-wrap">
+            <label for="manual-slider">Manual Speed: <strong id="manual-slider-val">0%</strong></label>
+            <div class="slider-controls">
+              <button id="speed-down-btn" type="button" class="btn btn-ghost" aria-label="Decrease manual speed by 10 percent">-10%</button>
+              <input id="manual-slider" type="range" min="0" max="100" step="1" value="0">
+              <button id="speed-up-btn" type="button" class="btn btn-ghost" aria-label="Increase manual speed by 10 percent">+10%</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Heart Rate -->
+      <section class="card card-hr" aria-labelledby="hr-heading">
+        <div class="card-head">
+          <h2 id="hr-heading">Heart Rate</h2>
+          <div class="card-head-actions">
+            <button id="card-scan-btn" type="button" class="btn btn-ghost btn-sm">Discover</button>
+            <span id="hr-conn-badge" class="badge badge-muted">Disconnected</span>
+          </div>
+        </div>
+
+        <div class="hr-metrics">
+          <div>
+            <span id="live-bpm" class="big-num">--</span>
+            <span class="metric-sub">Live BPM</span>
+          </div>
+          <div>
+            <span id="eff-bpm" class="mid-num">--</span>
+            <span id="eff-label" class="metric-sub">P80 (0/120s)</span>
+          </div>
+        </div>
+
+        <dl class="device-list">
+          <div>
+            <dt>HR Sensor</dt>
+            <dd id="hr-device-name">None selected</dd>
+          </div>
+          <div>
+            <dt>Fan Dimmer</dt>
+            <dd id="fan-device-name">None selected</dd>
+          </div>
+          <div>
+            <dt>Last HR</dt>
+            <dd id="last-hr-age">—</dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- Rolling HR History Chart -->
+      <section class="card card-chart" aria-labelledby="history-heading">
+        <div class="card-head">
+          <h2 id="history-heading">Rolling HR History</h2>
+          <span id="history-meta" class="muted">0s window</span>
+        </div>
+        <svg id="history-svg" class="chart-svg" viewBox="0 0 480 180" role="img" aria-label="Rolling heart rate history chart"></svg>
+      </section>
+
+      <!-- HR-to-Fan Curve Chart -->
+      <section class="card card-chart" aria-labelledby="curve-chart-heading">
+        <div class="card-head">
+          <h2 id="curve-chart-heading">HR-to-Fan Curve</h2>
+          <span class="muted">● Live · ◆ Percentile</span>
+        </div>
+        <svg id="curve-svg" class="chart-svg" viewBox="0 0 480 180" role="img" aria-label="Heart rate to fan speed curve"></svg>
+      </section>
+
+      <!-- Curve & Window Settings -->
+      <section class="card card-settings" aria-labelledby="settings-heading">
+        <div class="card-head">
+          <h2 id="settings-heading">Curve &amp; Window Settings</h2>
+          <span id="save-status" class="muted" aria-live="polite"></span>
+        </div>
+
+        <form id="curve-form" class="curve-form">
+          <label>
+            <span>Entry BPM</span>
+            <input id="cfg-min-hr" type="number" min="40" max="220" required>
+          </label>
+          <label>
+            <span>Entry Fan %</span>
+            <input id="cfg-min-speed" type="number" min="0" max="100" required>
+          </label>
+          <label>
+            <span>Max BPM</span>
+            <input id="cfg-max-hr" type="number" min="41" max="240" required>
+          </label>
+          <label>
+            <span>Max Fan %</span>
+            <input id="cfg-max-speed" type="number" min="0" max="100" required>
+          </label>
+          <label>
+            <span>Window (s)</span>
+            <input id="cfg-window" type="number" min="10" max="600" required>
+          </label>
+          <label>
+            <span>Percentile (%)</span>
+            <input id="cfg-percentile" type="number" min="1" max="100" required>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Curve</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="thresholds-dialog" class="thresholds-dialog" closedby="any" aria-labelledby="thresholds-dialog-title">
+    <div class="dialog-head">
+      <h2 id="thresholds-dialog-title">HR Thresholds &amp; Curve</h2>
+      <button id="close-thresholds-btn" type="button" class="btn btn-ghost" aria-label="Close thresholds dialog">Close</button>
+    </div>
+    <form id="thresholds-dialog-form" class="curve-form dialog-form">
+      <label for="dlg-min-hr">
+        <span>Entry BPM</span>
+        <input id="dlg-min-hr" name="min_hr" type="number" min="40" max="220" required autofocus>
+      </label>
+      <label for="dlg-min-speed">
+        <span>Entry Fan %</span>
+        <input id="dlg-min-speed" name="min_speed" type="number" min="0" max="100" required>
+      </label>
+      <label for="dlg-max-hr">
+        <span>Max BPM</span>
+        <input id="dlg-max-hr" name="max_hr" type="number" min="41" max="240" required>
+      </label>
+      <label for="dlg-max-speed">
+        <span>Max Fan %</span>
+        <input id="dlg-max-speed" name="max_speed" type="number" min="0" max="100" required>
+      </label>
+      <label for="dlg-window">
+        <span>Window (s)</span>
+        <input id="dlg-window" name="window_seconds" type="number" min="10" max="600" required>
+      </label>
+      <label for="dlg-percentile">
+        <span>Percentile (%)</span>
+        <input id="dlg-percentile" name="percentile" type="number" min="1" max="100" required>
+      </label>
+      <p id="dlg-error" class="dialog-error" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="cancel-thresholds-btn" type="button" class="btn">Cancel</button>
+        <button id="save-thresholds-btn" type="submit" class="btn btn-primary">Save Thresholds</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="devices-dialog" class="devices-dialog" closedby="any" aria-labelledby="devices-dialog-title">
+    <div class="dialog-head">
+      <h2 id="devices-dialog-title">Discover Devices</h2>
+      <button id="close-devices-btn" type="button" class="btn btn-ghost" aria-label="Close device discovery dialog">Close</button>
+    </div>
+
+    <div class="discovery-toolbar">
+      <div class="discovery-actions">
+        <button id="scan-devices-btn" type="button" class="btn btn-primary" autofocus>Scan Devices</button>
+        <button id="stop-scan-btn" type="button" class="btn btn-ghost" hidden>Stop Scan</button>
+      </div>
+      <span id="scan-status-text" class="muted" aria-live="polite">Scan for nearby BLE heart rate straps and Shelly dimmers on your LAN.</span>
+    </div>
+
+    <p id="devices-error" class="dialog-error" role="status" aria-live="polite"></p>
+
+    <div class="discovery-columns">
+      <section class="discovery-pane" aria-labelledby="disc-hr-heading">
+        <div class="discovery-pane-head">
+          <h3 id="disc-hr-heading">BLE Heart Rate Monitors</h3>
+          <span id="disc-hr-badge" class="badge badge-muted">Idle</span>
+        </div>
+        <ul id="disc-hr-list" class="discovery-list"></ul>
+      </section>
+
+      <section class="discovery-pane" aria-labelledby="disc-fan-heading">
+        <div class="discovery-pane-head">
+          <h3 id="disc-fan-heading">Shelly Dimmers (mDNS)</h3>
+          <span id="disc-fan-badge" class="badge badge-muted">Idle</span>
+        </div>
+        <ul id="disc-fan-list" class="discovery-list"></ul>
+      </section>
+    </div>
+  </dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
