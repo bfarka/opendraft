@@ -13,7 +13,6 @@ import (
 	"github.com/bfarka/opendraft/internal/version"
 	"github.com/bfarka/opendraft/internal/web"
 )
-)
 
 type viewState int
 

@@ -113,6 +113,14 @@ body {
   letter-spacing: -0.02em;
 }
 
+.version-tag {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  vertical-align: middle;
+  margin-left: 0.35rem;
+}
+
 .subtitle {
   margin: 0;
   font-size: 0.85rem;

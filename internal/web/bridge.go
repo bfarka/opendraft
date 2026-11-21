@@ -11,6 +11,7 @@ import (
 	"github.com/bfarka/opendraft/internal/config"
 	"github.com/bfarka/opendraft/internal/control"
 	"github.com/bfarka/opendraft/internal/domain"
+	"github.com/bfarka/opendraft/internal/version"
 )
 
 // CurveConfig holds the editable HR-to-fan curve and rolling window parameters.
@@ -62,6 +63,7 @@ type FanFactory func(dev domain.FanDevice) domain.FanController
 
 // State is the JSON-serializable snapshot exposed by the WebUI API and SSE stream.
 type State struct {
+	Version       string         `json:"version"`
 	Running       bool           `json:"running"`
 	Mode          string         `json:"mode"`
 	BPM           uint8          `json:"bpm"`
@@ -208,7 +210,8 @@ func (b *Bridge) Snapshot() State {
 	b.mu.RUnlock()
 
 	s := State{
-		Mode: string(control.ModeAuto),
+		Version: version.String(),
+		Mode:    string(control.ModeAuto),
 		Curve: CurveConfig{
 			MinHR:         cfg.MinHR,
 			MaxHR:         cfg.MaxHR,

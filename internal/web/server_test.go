@@ -17,6 +17,7 @@ import (
 	"github.com/bfarka/opendraft/internal/config"
 	"github.com/bfarka/opendraft/internal/control"
 	"github.com/bfarka/opendraft/internal/domain"
+	"github.com/bfarka/opendraft/internal/version"
 )
 
 type stubFan struct {
@@ -77,6 +78,9 @@ func TestWebUIServesIndexAndAPIState(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "opendraft") {
 		t.Fatalf("GET / body missing opendraft title")
 	}
+	if !strings.Contains(rec.Body.String(), `id="app-version"`) {
+		t.Fatalf("GET / body missing app-version element")
+	}
 
 	// API state
 	req = httptest.NewRequest(http.MethodGet, "/api/state", nil)
@@ -88,6 +92,9 @@ func TestWebUIServesIndexAndAPIState(t *testing.T) {
 	var st State
 	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil {
 		t.Fatalf("decode state: %v", err)
+	}
+	if st.Version != version.String() {
+		t.Fatalf("got Version=%q, want %q", st.Version, version.String())
 	}
 	if st.BPM != 142 || st.EffectiveBPM != 142 {
 		t.Fatalf("got BPM=%d EffectiveBPM=%d, want 142/142", st.BPM, st.EffectiveBPM)
