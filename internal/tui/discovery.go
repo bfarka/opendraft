@@ -64,6 +64,11 @@ func (m Model) updateDiscoveryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cfg.FanHost = fmt.Sprintf("%s:%d", dev.IP, dev.Port)
 			m.saveConfig()
 			m.statusMsg = fmt.Sprintf("Selected Shelly: %s", dev.Name)
+			if m.webBridge != nil {
+				m.webBridge.SetDevices(m.selectedHR, m.selectedFan)
+				m.webBridge.SetConfig(m.cfg)
+				m.webBridge.SetStatus(m.statusMsg, m.errMsg)
+			}
 			if m.selectedHR != nil {
 				m.view = viewDashboard
 			}
@@ -156,6 +161,10 @@ func (m Model) viewDiscoveryScreen() string {
 		b.WriteString(errStyle.Render("Error: "+m.errMsg) + "\n")
 	} else if m.statusMsg != "" {
 		b.WriteString(mutedStyle.Render(m.statusMsg) + "\n")
+	}
+
+	if m.webURL != "" {
+		b.WriteString(mutedStyle.Render("WebUI: "+m.webURL) + "\n")
 	}
 
 	b.WriteString(mutedStyle.Render("tab: switch pane • ↑/↓: select • enter: connect • r: rescan • d: dashboard • q: quit"))

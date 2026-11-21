@@ -17,11 +17,13 @@ flowchart LR
     HR["Wahoo TICKR / BLE Strap\n(GATT 0x180D / 0x2A37)"] -->|Bluetooth LE| APP["opendraft\n(macOS / Linux)"]
     APP -->|"Local HTTP GET\n/light/0?turn=on&brightness=%"| SHELLY["Shelly Dimmer 2\n(WLAN / mDNS _http._tcp)"]
     SHELLY -->|Dimmed AC Output| FAN["Indoor Cycling Fan"]
+    WEB["Phone / Tablet / Browser\n(http://<lan-ip>:8080)"] <-->|"HTTP + SSE"| APP
 ```
 
 1. **Heart Rate Source:** A Wahoo TICKR / TICKR FIT (or any standard BLE Heart Rate strap) broadcasts live BPM over Bluetooth Low Energy (`0x180D` / `0x2A37`).
-2. **Controller (`opendraft`):** Runs in your terminal on macOS or Linux, maps your BPM to a target fan percentage (`0–100%`), and rate-limits updates (`500ms` / `2%` change threshold).
+2. **Controller (`opendraft`):** Runs in your terminal on macOS or Linux, maps your BPM to a target fan percentage (`0–100%`), rate-limits updates (`500ms` / `2%` change threshold), and serves the local WebUI on `:8080` (IPv4).
 3. **Fan Dimmer (`Shelly Dimmer 2`):** Sits on your local Wi-Fi network, advertises itself via mDNS (`_http._tcp`), and accepts unencrypted local HTTP requests—no cloud, no account, and no encryption keys needed.
+4. **Local WebUI:** Open the `WebUI` URL printed in the TUI (e.g. `http://192.168.193.188:8080`) from your computer, phone, or tablet on the same Wi-Fi network to monitor fan speed and HR or adjust controls.
 
 ---
 
@@ -67,4 +69,6 @@ flowchart LR
 - **Shelly turns on (`ison: true`) but fan doesn't spin:**
   Raise **Entry Fan %** (`c` on the Dashboard) above the motor's starting threshold (e.g. `25%`–`35%`).
 - **Testing without hardware:**
-  Run `go run ./cmd/opendraft --mock`.
+  Run `go run ./cmd/opendraft --mock` (or `go run ./cmd/opendraft --mock --headless` for WebUI-only mode).
+- **Phone/tablet cannot reach the WebUI (`http://<lan-ip>:8080`):**
+  Ensure your terminal app has **Local Network** permission under *System Settings → Privacy & Security → Local Network* on macOS, use explicit `http://` (not `https://`), and confirm your Wi-Fi router does not have client/AP isolation enabled.
