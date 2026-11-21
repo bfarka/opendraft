@@ -2,24 +2,36 @@ package shelly
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/grandcat/zeroconf"
 
 	"github.com/bfarka/opendraft/internal/domain"
 )
 
-// Discoverer browses the local network via mDNS for Shelly devices (_http._tcp and _shelly._tcp).
-type Discoverer struct{}
+const probeTimeout = 1500 * time.Millisecond
+
+// Discoverer browses the local network via mDNS for Shelly dimmer devices (_http._tcp and _shelly._tcp).
+type Discoverer struct {
+	httpClient *http.Client
+}
 
 // NewDiscoverer creates a Shelly mDNS Discoverer.
 func NewDiscoverer() *Discoverer {
-	return &Discoverer{}
+	return &Discoverer{
+		httpClient: &http.Client{Timeout: probeTimeout},
+	}
 }
 
-// Scan discovers Shelly devices on the LAN until ctx is canceled.
+// Scan discovers Shelly dimmer devices on the LAN until ctx is canceled.
 func (d *Discoverer) Scan(ctx context.Context) (<-chan domain.FanDevice, error) {
 	out := make(chan domain.FanDevice, 16)
 
@@ -58,11 +70,19 @@ func (d *Discoverer) Scan(ctx context.Context) (<-chan domain.FanDevice, error) 
 				if exists {
 					continue
 				}
-				select {
-				case out <- dev:
-				case <-ctx.Done():
-					return
-				}
+
+				wg.Add(1)
+				go func(e *zeroconf.ServiceEntry, candidate domain.FanDevice) {
+					defer wg.Done()
+					verified, ok := d.verifyDimmer(ctx, e, candidate)
+					if !ok {
+						return
+					}
+					select {
+					case out <- verified:
+					case <-ctx.Done():
+					}
+				}(entry, dev)
 			}
 		}
 	}
@@ -79,10 +99,89 @@ func (d *Discoverer) Scan(ctx context.Context) (<-chan domain.FanDevice, error) 
 	return out, nil
 }
 
+func (d *Discoverer) verifyDimmer(ctx context.Context, entry *zeroconf.ServiceEntry, dev domain.FanDevice) (domain.FanDevice, bool) {
+	txt := parseTXT(entry.Text)
+	if app, ok := txt["app"]; ok && app != "" && !isDimmerApp(app) {
+		return domain.FanDevice{}, false
+	}
+
+	host := dev.IP
+	if host == "" {
+		host = strings.TrimSuffix(dev.Host, ".")
+	}
+	if host != "" && d.httpClient != nil {
+		info, err := d.fetchShellyInfo(ctx, host, dev.Port)
+		if err == nil {
+			if info.Auth || info.AuthEn {
+				dev.Encrypted = true
+			}
+			if known, dimmer := isDimmerInfo(info); known {
+				if !dimmer {
+					return domain.FanDevice{}, false
+				}
+				return dev, true
+			}
+		}
+	}
+
+	if !isDimmerEntry(entry) {
+		return domain.FanDevice{}, false
+	}
+	return dev, true
+}
+
+type shellyInfo struct {
+	Type   string `json:"type"`
+	Model  string `json:"model"`
+	App    string `json:"app"`
+	Gen    int    `json:"gen"`
+	Auth   bool   `json:"auth"`
+	AuthEn bool   `json:"auth_en"`
+}
+
+func (d *Discoverer) fetchShellyInfo(ctx context.Context, host string, port int) (shellyInfo, error) {
+	if port == 0 {
+		port = 80
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, "http://"+addr+"/shelly", nil)
+	if err != nil {
+		return shellyInfo{}, err
+	}
+	resp, err := d.httpClient.Do(req)
+	if err != nil {
+		return shellyInfo{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return shellyInfo{}, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	if err != nil {
+		return shellyInfo{}, err
+	}
+	var info shellyInfo
+	if err := json.Unmarshal(body, &info); err != nil {
+		return shellyInfo{}, err
+	}
+	return info, nil
+}
+
 func parseServiceEntry(entry *zeroconf.ServiceEntry) (domain.FanDevice, bool) {
 	instLower := strings.ToLower(entry.Instance)
 	hostLower := strings.ToLower(entry.HostName)
-	if !strings.Contains(instLower, "shelly") && !strings.Contains(hostLower, "shelly") {
+	txt := parseTXT(entry.Text)
+	idLower := strings.ToLower(txt["id"])
+	isShelly := strings.Contains(instLower, "shelly") ||
+		strings.Contains(hostLower, "shelly") ||
+		strings.Contains(idLower, "shelly") ||
+		(txt["gen"] != "" && txt["app"] != "")
+	if !isShelly {
 		return domain.FanDevice{}, false
 	}
 
@@ -107,4 +206,57 @@ func parseServiceEntry(entry *zeroconf.ServiceEntry) (domain.FanDevice, bool) {
 		Encrypted: false,
 		Model:     "shelly",
 	}, true
+}
+
+func parseTXT(records []string) map[string]string {
+	out := make(map[string]string, len(records))
+	for _, r := range records {
+		k, v, ok := strings.Cut(r, "=")
+		if !ok {
+			continue
+		}
+		out[strings.ToLower(strings.TrimSpace(k))] = strings.TrimSpace(v)
+	}
+	return out
+}
+
+func isDimmerInfo(info shellyInfo) (known bool, dimmer bool) {
+	if info.Type != "" {
+		t := strings.ToUpper(info.Type)
+		return true, t == "SHDM-1" || t == "SHDM-2"
+	}
+	if info.App != "" {
+		return true, isDimmerApp(info.App)
+	}
+	if info.Model != "" {
+		m := strings.ToUpper(info.Model)
+		if strings.HasPrefix(m, "SNDM-") ||
+			strings.HasPrefix(m, "SNWD-") ||
+			strings.HasPrefix(m, "S3DM-") ||
+			strings.HasPrefix(m, "SPDM-") {
+			return true, true
+		}
+	}
+	return false, false
+}
+
+func isDimmerEntry(entry *zeroconf.ServiceEntry) bool {
+	txt := parseTXT(entry.Text)
+	if app, ok := txt["app"]; ok && app != "" {
+		return isDimmerApp(app)
+	}
+	return isDimmerName(entry.Instance) || isDimmerName(entry.HostName) || isDimmerName(txt["id"])
+}
+
+func isDimmerApp(app string) bool {
+	a := strings.ToLower(app)
+	return strings.Contains(a, "dimmer") || strings.Contains(a, "010v") || strings.Contains(a, "0110dim")
+}
+
+func isDimmerName(name string) bool {
+	n := strings.ToLower(name)
+	return strings.Contains(n, "dimmer") ||
+		strings.Contains(n, "010v") ||
+		strings.Contains(n, "0110dim") ||
+		strings.Contains(n, "shellypluswd")
 }
