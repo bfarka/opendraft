@@ -19,7 +19,8 @@ var (
 
 // Source implements domain.HeartRateSource using tinygo.org/x/bluetooth.
 type Source struct {
-	adapter *bluetooth.Adapter
+	adapter     *bluetooth.Adapter
+	connectedFn func(context.Context) []domain.HRDevice
 
 	mu        sync.Mutex
 	enabled   bool
@@ -32,8 +33,9 @@ type Source struct {
 // NewSource creates a BLE HeartRateSource backed by the default Bluetooth adapter.
 func NewSource() *Source {
 	return &Source{
-		adapter:   bluetooth.DefaultAdapter,
-		addresses: make(map[string]bluetooth.Address),
+		adapter:     bluetooth.DefaultAdapter,
+		connectedFn: ConnectedHRDevices,
+		addresses:   make(map[string]bluetooth.Address),
 	}
 }
 
@@ -95,6 +97,10 @@ func (s *Source) Scan(ctx context.Context) (<-chan domain.HRDevice, error) {
 			<-ctx.Done()
 			s.stopScan()
 		}()
+
+		if !s.emitConnected(ctx, out, seen, &seenMu) {
+			return
+		}
 
 		_ = s.adapter.Scan(func(_ *bluetooth.Adapter, res bluetooth.ScanResult) {
 			if ctx.Err() != nil {
@@ -264,6 +270,39 @@ func (s *Source) Close() error {
 		return dev.Disconnect()
 	}
 	return nil
+}
+
+func (s *Source) emitConnected(ctx context.Context, out chan<- domain.HRDevice, seen map[string]struct{}, seenMu *sync.Mutex) bool {
+	if s.connectedFn == nil {
+		return true
+	}
+	for _, dev := range s.connectedFn(ctx) {
+		if ctx.Err() != nil {
+			return false
+		}
+		var addr bluetooth.Address
+		addr.Set(dev.ID)
+		s.mu.Lock()
+		s.addresses[dev.ID] = addr
+		s.mu.Unlock()
+
+		seenMu.Lock()
+		_, already := seen[dev.ID]
+		if !already {
+			seen[dev.ID] = struct{}{}
+		}
+		seenMu.Unlock()
+		if already {
+			continue
+		}
+
+		select {
+		case out <- dev:
+		case <-ctx.Done():
+			return false
+		}
+	}
+	return true
 }
 
 func looksLikeHRMonitor(name string) bool {

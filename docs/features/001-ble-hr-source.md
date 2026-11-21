@@ -2,7 +2,7 @@
 
 - **Status:** Implemented
 - **Created:** 2026-11-20
-- **Updated:** 2026-11-20
+- **Updated:** 2026-11-21
 
 ## Problem
 
@@ -18,7 +18,7 @@ As an indoor cyclist, I want `opendraft` to scan for nearby BLE heart rate monit
 - [ ] Scan for BLE peripherals and identify devices advertising Heart Rate Service (`0x180D`) or known HR monitor names.
 - [ ] Connect to a selected BLE device, subscribe to GATT Heart Rate Measurement (`0x2A37`), and stream `domain.HRReading` values.
 - [ ] Decode both 8-bit and 16-bit heart rate values per the Bluetooth SIG GATT specification, with table-driven unit tests.
-- [ ] Support macOS (CoreBluetooth) and Linux (BlueZ) via `tinygo.org/x/bluetooth`.
+- [x] Support macOS (CoreBluetooth) and Linux (BlueZ) via `tinygo.org/x/bluetooth`, including discovering HR peripherals already connected to another app (e.g. Rouvy) on macOS via CoreBluetooth `RetrieveConnectedPeripheralsWithServices(0x180D)`.
 
 ## Design & Architecture
 
@@ -26,6 +26,7 @@ As an indoor cyclist, I want `opendraft` to scan for nearby BLE heart rate monit
 - `internal/hr/ble`:
   - `parser.go`: pure-Go `ParseHeartRateMeasurement(data []byte) (uint8, error)` decoder.
   - `scanner.go`: `tinygo.org/x/bluetooth` implementation of `domain.HeartRateSource`.
+  - `connected_darwin.go` / `connected_other.go`: macOS CoreBluetooth `RetrieveConnectedPeripheralsWithServices` lookup for already-connected `0x180D` peripherals.
 
 ## Out of Scope
 
