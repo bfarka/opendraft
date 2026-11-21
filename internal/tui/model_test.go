@@ -237,3 +237,18 @@ func TestDashboardChartsAndCurveEditorWindowPercentile(t *testing.T) {
 		t.Fatalf("expected loop updated to 60s / P75, got %+v", snap)
 	}
 }
+
+func TestWebURLShownInDiscoveryAndDashboard(t *testing.T) {
+	m := NewModel(context.Background(), nil, nil, nil, "", config.Default()).
+		WithWebURL("http://127.0.0.1:8081")
+
+	if view := m.View(); !strings.Contains(view, "http://127.0.0.1:8081") {
+		t.Fatalf("expected WebUI URL in discovery view:\n%s", view)
+	}
+
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'d'}})
+	m = next.(Model)
+	if view := m.View(); !strings.Contains(view, "WebUI      : http://127.0.0.1:8081") {
+		t.Fatalf("expected WebUI URL in dashboard view:\n%s", view)
+	}
+}

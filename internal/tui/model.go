@@ -10,6 +10,7 @@ import (
 	"github.com/bfarka/opendraft/internal/config"
 	"github.com/bfarka/opendraft/internal/control"
 	"github.com/bfarka/opendraft/internal/domain"
+	"github.com/bfarka/opendraft/internal/web"
 )
 
 type viewState int
@@ -48,6 +49,14 @@ type hrReadingMsg domain.HRReading
 type hrClosedMsg struct{}
 
 type tickMsg time.Time
+
+// WebDeviceSyncMsg updates TUI device state when a device is connected or selected from the WebUI.
+type WebDeviceSyncMsg struct {
+	HR      *domain.HRDevice
+	Fan     *domain.FanDevice
+	Cfg     config.Config
+	FanCtrl domain.FanController
+}
 
 type scansStartedMsg struct {
 	bleCh  <-chan domain.HRDevice
@@ -95,6 +104,8 @@ type Model struct {
 	curveInputs  [6]string
 	statusMsg    string
 	errMsg       string
+	webBridge    *web.Bridge
+	webURL       string
 }
 
 // NewModel initializes the TUI model.
@@ -140,6 +151,30 @@ func NewModel(
 	}
 	m.loop.SetWindowConfig(ctx, cfg.WindowSeconds, cfg.Percentile)
 	return m
+}
+
+// WithWebBridge attaches a web.Bridge so TUI state changes are mirrored to the WebUI.
+func (m Model) WithWebBridge(b *web.Bridge) Model {
+	m.webBridge = b
+	if b != nil {
+		b.SetLoop(m.loop)
+		b.SetDevices(m.selectedHR, m.selectedFan)
+		b.SetConfig(m.cfg)
+		b.SetStatus(m.statusMsg, m.errMsg)
+	}
+	return m
+}
+
+// WithWebURL sets the local WebUI URL displayed in the TUI.
+func (m Model) WithWebURL(url string) Model {
+	m.webURL = url
+	return m
+}
+
+func (m *Model) notifyWeb() {
+	if m.webBridge != nil {
+		m.webBridge.Notify()
+	}
 }
 
 // Init starts initial BLE and mDNS discovery scans and the 1s watchdog ticker.
@@ -201,6 +236,9 @@ func waitHRReading(ch <-chan domain.HRReading) tea.Cmd {
 }
 
 func (m *Model) connectHR(dev domain.HRDevice) tea.Cmd {
+	if m.webBridge != nil {
+		m.webBridge.CancelHRStream()
+	}
 	if m.hrCancel != nil {
 		m.hrCancel()
 	}
@@ -228,6 +266,10 @@ func (m *Model) rebuildLoop() {
 		MaxSpeed: m.cfg.MaxSpeed,
 	}
 	m.loop = control.NewLoop(mapper, m.fanCtrl)
+	m.loop.SetWindowConfig(m.ctx, m.cfg.WindowSeconds, m.cfg.Percentile)
+	if m.webBridge != nil {
+		m.webBridge.SetLoop(m.loop)
+	}
 }
 
 func (m *Model) saveConfig() {
@@ -323,6 +365,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.saveConfig()
 		m.errMsg = ""
 		m.statusMsg = fmt.Sprintf("Connected HR: %s", msg.dev.Name)
+		if m.webBridge != nil {
+			m.webBridge.SetDevices(m.selectedHR, m.selectedFan)
+			m.webBridge.SetConfig(m.cfg)
+			m.webBridge.SetStatus(m.statusMsg, m.errMsg)
+		}
 		if m.selectedFan != nil {
 			m.view = viewDashboard
 		}
@@ -334,6 +381,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case hrReadingMsg:
 		m.loop.HandleHR(m.ctx, domain.HRReading(msg))
+		m.notifyWeb()
 		if m.hrCh != nil {
 			return m, waitHRReading(m.hrCh)
 		}
@@ -341,11 +389,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case hrClosedMsg:
 		m.statusMsg = "HR stream closed"
+		m.notifyWeb()
 		return m, nil
 
 	case tickMsg:
 		m.loop.CheckTimeout(m.ctx)
+		m.notifyWeb()
 		return m, tickEverySecond()
+
+	case WebDeviceSyncMsg:
+		if msg.HR != nil {
+			if m.hrCancel != nil {
+				m.hrCancel()
+				m.hrCancel = nil
+				m.hrCh = nil
+			}
+			cp := *msg.HR
+			m.selectedHR = &cp
+		}
+		if msg.Fan != nil {
+			cp := *msg.Fan
+			m.selectedFan = &cp
+		}
+		if msg.FanCtrl != nil {
+			m.fanCtrl = msg.FanCtrl
+		}
+		m.cfg = msg.Cfg
+		if m.selectedHR != nil && m.selectedFan != nil {
+			m.view = viewDashboard
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		if m.view == viewDiscovery {

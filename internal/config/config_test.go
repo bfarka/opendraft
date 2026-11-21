@@ -33,6 +33,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		MaxSpeed:      100,
 		WindowSeconds: 90,
 		Percentile:    85,
+		WebPort:       9090,
 	}
 	if err := Save(path, want); err != nil {
 		t.Fatalf("Save() unexpected error: %v", err)
