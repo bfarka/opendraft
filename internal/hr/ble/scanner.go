@@ -149,7 +149,10 @@ func (s *Source) Connect(ctx context.Context, deviceID string) (<-chan domain.HR
 	addr, ok := s.addresses[deviceID]
 	s.mu.Unlock()
 	if !ok {
-		return nil, fmt.Errorf("ble device %q not found in recent scan", deviceID)
+		addr.Set(deviceID)
+		if addr == (bluetooth.Address{}) {
+			return nil, fmt.Errorf("ble device %q not found in recent scan", deviceID)
+		}
 	}
 
 	// Stop any active scan once before initiating a BLE connection on macOS/Linux.
