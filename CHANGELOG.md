@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/bfarka/opendraft/compare/v1.3.0...v1.3.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* filter Shelly mDNS discovery to dimmer devices ([6e6822a](https://github.com/bfarka/opendraft/commit/6e6822a5976a022779d798e431352125df708363))
+* filter Shelly mDNS discovery to dimmer devices ([083bb27](https://github.com/bfarka/opendraft/commit/083bb27c50d50b31e93c41b757c86eda2e94af1d))
+
 ## [1.3.0](https://github.com/bfarka/opendraft/compare/v1.2.0...v1.3.0) (2026-11-21)
 
 
