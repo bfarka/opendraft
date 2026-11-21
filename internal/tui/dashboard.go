@@ -21,6 +21,9 @@ var curveFieldLabels = [6]string{
 }
 
 func (m *Model) openCurveEditor() {
+	if m.webBridge != nil {
+		m.cfg = m.webBridge.Config()
+	}
 	m.editingCurve = true
 	m.curveCursor = 0
 	m.curveInputs = [6]string{
@@ -80,6 +83,9 @@ func (m Model) updateCurveEditorKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			MaxSpeed: m.cfg.MaxSpeed,
 		})
 		m.loop.SetWindowConfig(m.ctx, m.cfg.WindowSeconds, m.cfg.Percentile)
+		if m.webBridge != nil {
+			m.webBridge.SetConfig(m.cfg)
+		}
 		m.editingCurve = false
 		m.errMsg = ""
 		m.statusMsg = fmt.Sprintf("Saved curve: <=%d bpm -> %d%%, %d bpm -> %d%% (P%d/%ds)",
@@ -144,6 +150,7 @@ func (m Model) updateDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.loop.Start(m.ctx)
 		}
+		m.notifyWeb()
 
 	case "c":
 		m.openCurveEditor()
@@ -159,15 +166,19 @@ func (m Model) updateDashboardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.loop.SetMode(m.ctx, control.ModeAuto)
 		}
+		m.notifyWeb()
 
 	case "+", "=", "up":
 		m.loop.SetManualSpeed(m.ctx, snap.AppliedSpeed+5)
+		m.notifyWeb()
 
 	case "-", "_", "down":
 		m.loop.SetManualSpeed(m.ctx, snap.AppliedSpeed-5)
+		m.notifyWeb()
 
 	case "0":
 		m.loop.SetManualSpeed(m.ctx, 0)
+		m.notifyWeb()
 	}
 
 	return m, nil
@@ -211,6 +222,9 @@ func (m Model) viewDashboardScreen() string {
 		fmt.Sprintf("Fan Speed  : %3d%%  %s (target %d%%)", snap.AppliedSpeed, bar, snap.TargetSpeed),
 		fmt.Sprintf("HR Curve   : <=%d bpm -> %d%%  |  %d+ bpm -> %d%%  (P%d/%ds)",
 			m.cfg.MinHR, m.cfg.MinSpeed, m.cfg.MaxHR, m.cfg.MaxSpeed, m.cfg.Percentile, m.cfg.WindowSeconds),
+	}
+	if m.webURL != "" {
+		lines = append(lines, fmt.Sprintf("WebUI      : %s", m.webURL))
 	}
 
 	b.WriteString(activePaneStyle.Width(64).Render(strings.Join(lines, "\n")))

@@ -23,6 +23,7 @@ An open-source, poor man's Wahoo Headwind alternative implemented in Go.
   - Default linear curve: fixed **15%** at or below **120 bpm**, ramping linearly to **100%** at **165+ bpm** (editable live in the TUI).
   - Rate-limiting (`500ms` / `2%` deadband), `AUTO` / `MANUAL` override, and automatic `10s` HR-disconnect safety shutoff.
 - **Bubble Tea TUI & Saved Hardware:** Remembers your selected BLE HR monitor, Shelly Dimmer, and curve in `~/.config/opendraft/config.json`, auto-reconnecting on subsequent launches.
+- **Local WebUI & Live SSE Dashboard:** Built-in browser dashboard (default `:8080`, IPv4) showing live fan speed %, target speed, live & percentile HR, rolling HR history and HR-to-fan curve SVG charts, plus Start/Stop, Auto/Manual speed, and curve controls from your computer, phone, or tablet on the same LAN.
 
 ## Quick Start
 
@@ -34,11 +35,20 @@ go run ./cmd/opendraft
 
 # Run in simulated hardware mode (no BLE strap or Shelly required)
 go run ./cmd/opendraft --mock
+
+# Run headless (WebUI only, no TUI) with saved or mock devices
+go run ./cmd/opendraft --headless --mock
 ```
 
-### Diagnostic Flags
+### WebUI & Diagnostic Flags
 
 ```sh
+# Bind WebUI to a custom address/port (default ":8080", empty "" disables WebUI)
+go run ./cmd/opendraft --web-addr :9090
+
+# Disable WebUI
+go run ./cmd/opendraft --web-addr ""
+
 # Print raw BLE advertisements and Shelly mDNS entries for 5 seconds
 go run ./cmd/opendraft --debug-scan
 
@@ -68,6 +78,19 @@ go run ./cmd/opendraft --config /path/to/config.json
 - `0` — Set manual fan speed to `0%`
 - `s` — Jump directly to **Discovery / Scan**
 - `q` — Stop fan and quit
+
+## Local WebUI
+
+When running, `opendraft` serves an embedded WebUI on `--web-addr` (default `:8080`, IPv4) and displays the resolved LAN URL (e.g. `http://192.168.x.x:8080`) in the TUI.
+
+- **Dashboard (`GET /`):** Live fan speed gauge, Start/Stop, Auto/Manual toggle, manual speed slider (`0–100%`), rolling HR history chart, HR-to-fan curve chart, and curve/window editor.
+- **API & SSE:**
+  - `GET /api/state` — JSON snapshot of control loop state, HR history, curve config, and devices
+  - `GET /api/events` — Server-Sent Events (SSE) stream of live state updates
+  - `POST /api/start`, `POST /api/stop` — Start/stop fan control
+  - `POST /api/mode` (`{"mode":"AUTO"|"MANUAL"}`) — Switch control mode
+  - `POST /api/speed` (`{"speed":0..100}`) — Set manual fan speed
+  - `POST /api/curve` — Update and persist HR-to-fan curve & rolling window settings
 
 ## Configuration
 
