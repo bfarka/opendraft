@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/bfarka/opendraft/compare/v1.2.0...v1.3.0) (2026-11-21)
+
+
+### Features
+
+* **web:** add local WebUI dashboard, SSE API, and device discovery ([3859e36](https://github.com/bfarka/opendraft/commit/3859e3666ffe80045f67ec94c86b0c57896afead))
+
 ## [1.2.0](https://github.com/bfarka/opendraft/compare/v1.1.0...v1.2.0) (2026-11-21)
 
 
