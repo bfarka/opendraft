@@ -1,0 +1,65 @@
+#!/bin/sh
+set -eu
+
+MSG_FILE="${1:-}"
+if [ -z "$MSG_FILE" ] || [ ! -f "$MSG_FILE" ]; then
+  echo "commit-msg: missing commit message file argument" >&2
+  exit 1
+fi
+
+# Read the first non-comment, non-empty line (the commit subject).
+SUBJECT=""
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in
+    \#*|"") continue ;;
+    *)
+      SUBJECT="$line"
+      break
+      ;;
+  esac
+done < "$MSG_FILE"
+
+if [ -z "$SUBJECT" ]; then
+  echo "commit-msg: commit message must not be empty." >&2
+  exit 1
+fi
+
+# Allow Git-generated merge, revert, fixup, and squash commits.
+case "$SUBJECT" in
+  Merge\ *|Revert\ \"*\"|fixup!\ *|squash!\ *)
+    exit 0
+    ;;
+esac
+
+# Enforce Conventional Commits: <type>[optional (<scope>)][optional !]: <description>
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_./-]+\))?(!)?: .+$'
+
+if ! printf '%s\n' "$SUBJECT" | grep -Eq "$PATTERN"; then
+  cat >&2 <<'EOF'
+commit-msg: invalid commit message format.
+
+This repository enforces Conventional Commits for automated SemVer releases:
+  <type>[optional (<scope>)][optional !]: <description>
+
+Allowed types (and SemVer impact):
+  fix:      patch bump (0.0.X) - bug fixes
+  feat:     minor bump (0.X.0) - new features
+  feat!:    major bump (X.0.0) - breaking changes (or 'BREAKING CHANGE:' in footer)
+  docs:     no bump (unless breaking) - documentation only
+  refactor: no bump - code restructuring
+  perf:     no bump - performance improvements
+  test:     no bump - adding or updating tests
+  build:    no bump - build system or dependencies
+  ci:       no bump - CI/CD configuration
+  chore:    no bump - maintenance tasks
+  style:    no bump - formatting, whitespace
+  revert:   reverts a previous commit
+
+Examples:
+  feat(tui): add dark mode toggle
+  fix(ble): handle unexpected peripheral disconnect
+  feat!: drop support for legacy config format
+EOF
+  printf '\nGot: %s\n' "$SUBJECT" >&2
+  exit 1
+fi

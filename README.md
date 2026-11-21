@@ -130,6 +130,14 @@ Because `opendraft` separates domain interfaces in [`internal/domain/domain.go`]
 
 To contribute, start with a short feature spec in `docs/features/` using [`docs/features/_template.md`](docs/features/_template.md), include table-driven unit tests, and run `go vet ./...` and `go test -race ./...` before opening a PR.
 
+Enable the local Git hooks once after cloning:
+
+```sh
+make hooks
+```
+
+Commits and PR titles follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `feat!:`, `chore:`, etc.). On `main`, [Release Please](https://github.com/googleapis/release-please) maintains a Release PR with generated release notes and `CHANGELOG.md`; merging that PR creates the SemVer tag and GitHub Release.
+
 ## License
 
 [MIT](LICENSE)
