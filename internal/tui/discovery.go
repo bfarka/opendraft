@@ -104,7 +104,12 @@ func (m Model) viewDiscoveryScreen() string {
 			}
 			marker := ""
 			if m.selectedHR != nil && m.selectedHR.ID == d.ID {
-				marker = " [connected]"
+				snap := m.loop.State()
+				if snap.HRConnected {
+					marker = fmt.Sprintf(" [connected: %d bpm]", snap.BPM)
+				} else {
+					marker = " [connected]"
+				}
 			}
 			line := fmt.Sprintf("%s%s (%ddBm)%s", prefix, d.Name, d.RSSI, marker)
 			if i == m.bleCursor && m.activePane == paneBLE {
