@@ -29,6 +29,9 @@ func runDebugScan() error {
 			return
 		}
 		fmt.Println("[BLE] Adapter enabled, scanning all devices...")
+		for _, dev := range ble.ConnectedHRDevices(ctx) {
+			fmt.Printf("[BLE connected] addr=%s name=%q has0x180D=true\n", dev.ID, dev.Name)
+		}
 		seen := make(map[string]struct{})
 		var mu sync.Mutex
 		go func() {
