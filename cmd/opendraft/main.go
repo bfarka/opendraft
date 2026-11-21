@@ -34,7 +34,7 @@ func run(args []string) error {
 	fs := flag.NewFlagSet("opendraft", flag.ContinueOnError)
 	cfgPathFlag := fs.String("config", "", "path to config JSON file")
 	mockFlag := fs.Bool("mock", false, "use simulated BLE HR and Shelly dimmer devices (no hardware required)")
-	webAddrFlag := fs.String("web-addr", ":8080", "HTTP address for local WebUI (empty to disable)")
+	webAddrFlag := fs.String("web-addr", ":8081", "HTTP address for local WebUI (empty to disable)")
 	webPortFlag := fs.Int("web-port", 0, "TCP port for local WebUI (overrides config web_port; 0 disables)")
 	headlessFlag := fs.Bool("headless", false, "run without TUI (serves WebUI and auto-connects saved/mock devices)")
 	debugScanFlag := fs.Bool("debug-scan", false, "run a 5s diagnostic BLE + mDNS scan and print raw results")

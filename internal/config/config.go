@@ -65,7 +65,7 @@ func Default() Config {
 		MaxSpeed:      100,
 		WindowSeconds: 120,
 		Percentile:    80,
-		WebPort:       8080,
+		WebPort:       8081,
 	}
 }
 

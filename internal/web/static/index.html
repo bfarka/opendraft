@@ -21,6 +21,7 @@
         <span id="conn-badge" class="badge badge-muted">Connecting…</span>
         <span id="run-badge" class="badge badge-muted">STOPPED</span>
         <span id="mode-badge" class="badge badge-muted">AUTO</span>
+        <button id="open-thresholds-btn" type="button" class="btn btn-ghost">Thresholds</button>
       </div>
     </header>
 
@@ -152,6 +153,44 @@
       </section>
     </main>
   </div>
+
+  <dialog id="thresholds-dialog" class="thresholds-dialog" closedby="any" aria-labelledby="thresholds-dialog-title">
+    <div class="dialog-head">
+      <h2 id="thresholds-dialog-title">HR Thresholds &amp; Curve</h2>
+      <button id="close-thresholds-btn" type="button" class="btn btn-ghost" aria-label="Close thresholds dialog">Close</button>
+    </div>
+    <form id="thresholds-dialog-form" class="curve-form dialog-form">
+      <label for="dlg-min-hr">
+        <span>Entry BPM</span>
+        <input id="dlg-min-hr" name="min_hr" type="number" min="40" max="220" required autofocus>
+      </label>
+      <label for="dlg-min-speed">
+        <span>Entry Fan %</span>
+        <input id="dlg-min-speed" name="min_speed" type="number" min="0" max="100" required>
+      </label>
+      <label for="dlg-max-hr">
+        <span>Max BPM</span>
+        <input id="dlg-max-hr" name="max_hr" type="number" min="41" max="240" required>
+      </label>
+      <label for="dlg-max-speed">
+        <span>Max Fan %</span>
+        <input id="dlg-max-speed" name="max_speed" type="number" min="0" max="100" required>
+      </label>
+      <label for="dlg-window">
+        <span>Window (s)</span>
+        <input id="dlg-window" name="window_seconds" type="number" min="10" max="600" required>
+      </label>
+      <label for="dlg-percentile">
+        <span>Percentile (%)</span>
+        <input id="dlg-percentile" name="percentile" type="number" min="1" max="100" required>
+      </label>
+      <p id="dlg-error" class="dialog-error" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="cancel-thresholds-btn" type="button" class="btn">Cancel</button>
+        <button id="save-thresholds-btn" type="submit" class="btn btn-primary">Save Thresholds</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="app.js" defer></script>
 </body>
