@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/bfarka/opendraft/compare/v1.1.0...v1.2.0) (2026-11-21)
+
+
+### Features
+
+* **web:** add local WebUI dashboard, thresholds modal, and default port 8081 ([323b77f](https://github.com/bfarka/opendraft/commit/323b77fbedba4e68968d69eceb62059a0ac9ec5f))
+* **web:** add thresholds modal and set default port to 8081 ([d28c992](https://github.com/bfarka/opendraft/commit/d28c9920e269f07cc2f82cebf196d15dc5a306a3))
+
 ## [1.1.0](https://github.com/bfarka/opendraft/compare/v1.0.0...v1.1.0) (2026-11-21)
 
 
