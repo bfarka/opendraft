@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/bfarka/opendraft/compare/v1.0.0...v1.1.0) (2026-11-21)
+
+
+### Features
+
+* **web:** local WebUI dashboard, configurable port, and headless mode ([f874cea](https://github.com/bfarka/opendraft/commit/f874cea317dfe01b88e67356ea38ae0aa99790be))
+* **web:** make webui port configurable and fail fast when in use ([6e9bd3b](https://github.com/bfarka/opendraft/commit/6e9bd3bd2e6bf3c07c263f3af3192f46030d3dd0))
+
 ## 1.0.0 (2026-11-21)
 
 
