@@ -42,10 +42,10 @@ func TestFormatWebURLWithIP(t *testing.T) {
 		ip   string
 		want string
 	}{
-		{name: "wildcard ipv6 resolves LAN IP", addr: "[::]:8080", ip: "192.168.1.42", want: "http://192.168.1.42:8080"},
-		{name: "wildcard ipv4 resolves LAN IP", addr: "0.0.0.0:8080", ip: "10.0.0.15", want: "http://10.0.0.15:8080"},
+		{name: "wildcard ipv6 resolves LAN IP", addr: "[::]:8081", ip: "192.168.1.42", want: "http://192.168.1.42:8081"},
+		{name: "wildcard ipv4 resolves LAN IP", addr: "0.0.0.0:8081", ip: "10.0.0.15", want: "http://10.0.0.15:8081"},
 		{name: "explicit host preserved", addr: "192.168.1.99:9090", ip: "10.0.0.15", want: "http://192.168.1.99:9090"},
-		{name: "fallback to loopback if no LAN IP", addr: ":8080", ip: "", want: "http://127.0.0.1:8080"},
+		{name: "fallback to loopback if no LAN IP", addr: ":8081", ip: "", want: "http://127.0.0.1:8081"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -68,16 +68,16 @@ func TestResolveWebAddr(t *testing.T) {
 		want       string
 		wantErr    bool
 	}{
-		{name: "config default", cfgPort: 8080, want: ":8080"},
+		{name: "config default", cfgPort: 8081, want: ":8081"},
 		{name: "config custom port", cfgPort: 9090, want: ":9090"},
 		{name: "config disabled", cfgPort: 0, want: ""},
 		{name: "config invalid port", cfgPort: 70000, wantErr: true},
-		{name: "web-port overrides config", cfgPort: 8080, webPort: 9191, webPortSet: true, want: ":9191"},
-		{name: "web-port zero disables", cfgPort: 8080, webPort: 0, webPortSet: true, want: ""},
-		{name: "web-port invalid", cfgPort: 8080, webPort: -1, webPortSet: true, wantErr: true},
-		{name: "web-addr overrides config", cfgPort: 8080, webAddr: "127.0.0.1:9292", webAddrSet: true, want: "127.0.0.1:9292"},
-		{name: "web-addr empty disables", cfgPort: 8080, webAddr: "", webAddrSet: true, want: ""},
-		{name: "web-addr and web-port combine host and port", cfgPort: 8080, webAddr: "127.0.0.1:8080", webAddrSet: true, webPort: 9393, webPortSet: true, want: "127.0.0.1:9393"},
+		{name: "web-port overrides config", cfgPort: 8081, webPort: 9191, webPortSet: true, want: ":9191"},
+		{name: "web-port zero disables", cfgPort: 8081, webPort: 0, webPortSet: true, want: ""},
+		{name: "web-port invalid", cfgPort: 8081, webPort: -1, webPortSet: true, wantErr: true},
+		{name: "web-addr overrides config", cfgPort: 8081, webAddr: "127.0.0.1:9292", webAddrSet: true, want: "127.0.0.1:9292"},
+		{name: "web-addr empty disables", cfgPort: 8081, webAddr: "", webAddrSet: true, want: ""},
+		{name: "web-addr and web-port combine host and port", cfgPort: 8081, webAddr: "127.0.0.1:8081", webAddrSet: true, webPort: 9393, webPortSet: true, want: "127.0.0.1:9393"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -23,7 +23,7 @@ An open-source, poor man's Wahoo Headwind alternative implemented in Go.
   - Default linear curve: fixed **15%** at or below **120 bpm**, ramping linearly to **100%** at **165+ bpm** (editable live in the TUI).
   - Rate-limiting (`500ms` / `2%` deadband), `AUTO` / `MANUAL` override, and automatic `10s` HR-disconnect safety shutoff.
 - **Bubble Tea TUI & Saved Hardware:** Remembers your selected BLE HR monitor, Shelly Dimmer, and curve in `~/.config/opendraft/config.json`, auto-reconnecting on subsequent launches.
-- **Local WebUI & Live SSE Dashboard:** Built-in browser dashboard (default `:8080`, IPv4) showing live fan speed %, target speed, live & percentile HR, rolling HR history and HR-to-fan curve SVG charts, plus Start/Stop, Auto/Manual speed, and curve controls from your computer, phone, or tablet on the same LAN.
+- **Local WebUI & Live SSE Dashboard:** Built-in browser dashboard (default `:8081`, IPv4) showing live fan speed %, target speed, live & percentile HR, rolling HR history and HR-to-fan curve SVG charts, plus Start/Stop, Auto/Manual speed, and curve/threshold controls from your computer, phone, or tablet on the same LAN.
 
 ## Quick Start
 
@@ -43,7 +43,7 @@ go run ./cmd/opendraft --headless --mock
 ### WebUI & Diagnostic Flags
 
 ```sh
-# Bind WebUI to a custom port or address (default port 8080, 0 or "" disables WebUI)
+# Bind WebUI to a custom port or address (default port 8081, 0 or "" disables WebUI)
 go run ./cmd/opendraft --web-port 9090
 go run ./cmd/opendraft --web-addr :9090
 
@@ -83,7 +83,7 @@ go run ./cmd/opendraft --config /path/to/config.json
 
 ## Local WebUI
 
-When running, `opendraft` serves an embedded WebUI on `--web-addr` (default `:8080`, IPv4) and displays the resolved LAN URL (e.g. `http://192.168.x.x:8080`) in the TUI.
+When running, `opendraft` serves an embedded WebUI on `--web-addr` (default `:8081`, IPv4) and displays the resolved LAN URL (e.g. `http://192.168.x.x:8081`) in the TUI.
 
 - **Dashboard (`GET /`):** Live fan speed gauge, Start/Stop, Auto/Manual toggle, manual speed slider (`0–100%`), rolling HR history chart, HR-to-fan curve chart, and curve/window editor.
 - **API & SSE:**
@@ -110,7 +110,7 @@ Settings are saved automatically to `~/.config/opendraft/config.json`:
   "max_hr": 165,
   "min_speed": 15,
   "max_speed": 100,
-  "web_port": 8080
+  "web_port": 8081
 }
 ```
 

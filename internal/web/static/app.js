@@ -34,6 +34,19 @@
     cfgMaxSpeed: $('cfg-max-speed'),
     cfgWindow: $('cfg-window'),
     cfgPercentile: $('cfg-percentile'),
+    openThresholdsBtn: $('open-thresholds-btn'),
+    thresholdsDialog: $('thresholds-dialog'),
+    closeThresholdsBtn: $('close-thresholds-btn'),
+    cancelThresholdsBtn: $('cancel-thresholds-btn'),
+    thresholdsDialogForm: $('thresholds-dialog-form'),
+    saveThresholdsBtn: $('save-thresholds-btn'),
+    dlgMinHr: $('dlg-min-hr'),
+    dlgMinSpeed: $('dlg-min-speed'),
+    dlgMaxHr: $('dlg-max-hr'),
+    dlgMaxSpeed: $('dlg-max-speed'),
+    dlgWindow: $('dlg-window'),
+    dlgPercentile: $('dlg-percentile'),
+    dlgError: $('dlg-error'),
   };
 
   let latestState = null;
@@ -345,6 +358,62 @@
       render(st);
     } catch (err) {
       els.saveStatus.textContent = err.message;
+    }
+  });
+
+  function openThresholdsDialog() {
+    const c = latestState?.curve;
+    els.dlgMinHr.value = c ? c.min_hr : els.cfgMinHr.value;
+    els.dlgMinSpeed.value = c ? c.min_speed : els.cfgMinSpeed.value;
+    els.dlgMaxHr.value = c ? c.max_hr : els.cfgMaxHr.value;
+    els.dlgMaxSpeed.value = c ? c.max_speed : els.cfgMaxSpeed.value;
+    els.dlgWindow.value = c ? c.window_seconds : els.cfgWindow.value;
+    els.dlgPercentile.value = c ? c.percentile : els.cfgPercentile.value;
+    els.dlgError.textContent = '';
+    els.thresholdsDialog.showModal();
+  }
+
+  els.openThresholdsBtn.addEventListener('click', openThresholdsDialog);
+  els.closeThresholdsBtn.addEventListener('click', () => els.thresholdsDialog.close());
+  els.cancelThresholdsBtn.addEventListener('click', () => els.thresholdsDialog.close());
+
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    const outside = (e, dialog) => {
+      const r = dialog.getBoundingClientRect();
+      return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+    };
+    let pressedOutside = false;
+    els.thresholdsDialog.addEventListener('pointerdown', (e) => {
+      pressedOutside = outside(e, els.thresholdsDialog);
+    });
+    els.thresholdsDialog.addEventListener('pointerup', (e) => {
+      if (pressedOutside && outside(e, els.thresholdsDialog)) {
+        els.thresholdsDialog.close();
+      }
+    });
+  }
+
+  els.thresholdsDialogForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    els.dlgError.textContent = '';
+    els.saveThresholdsBtn.disabled = true;
+    try {
+      const st = await postJSON('/api/curve', {
+        min_hr: Number(els.dlgMinHr.value),
+        min_speed: Number(els.dlgMinSpeed.value),
+        max_hr: Number(els.dlgMaxHr.value),
+        max_speed: Number(els.dlgMaxSpeed.value),
+        window_seconds: Number(els.dlgWindow.value),
+        percentile: Number(els.dlgPercentile.value),
+      });
+      curveInitialized = false;
+      els.saveStatus.textContent = 'Saved';
+      render(st);
+      els.thresholdsDialog.close();
+    } catch (err) {
+      els.dlgError.textContent = err.message;
+    } finally {
+      els.saveThresholdsBtn.disabled = false;
     }
   });
 
