@@ -2,6 +2,7 @@
   const $ = (id) => document.getElementById(id);
 
   const els = {
+    appVersion: $('app-version'),
     connBadge: $('conn-badge'),
     runBadge: $('run-badge'),
     modeBadge: $('mode-badge'),
@@ -89,6 +90,10 @@
 
   function render(st) {
     latestState = st;
+
+    if (els.appVersion && st.version) {
+      els.appVersion.textContent = st.version;
+    }
 
     // Top badges
     if (st.running) {
