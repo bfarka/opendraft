@@ -26,6 +26,7 @@ type Config struct {
 	MaxSpeed      int    `json:"max_speed"`
 	WindowSeconds int    `json:"window_seconds"`
 	Percentile    int    `json:"percentile"`
+	WebPort       int    `json:"web_port"`
 }
 
 // HasSavedDevices reports whether both a BLE HR device and a fan dimmer are saved.
@@ -64,6 +65,7 @@ func Default() Config {
 		MaxSpeed:      100,
 		WindowSeconds: 120,
 		Percentile:    80,
+		WebPort:       8080,
 	}
 }
 
