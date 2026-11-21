@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/bfarka/opendraft/compare/v1.4.0...v1.4.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **ble:** discover already-connected CoreBluetooth HR peripherals on macOS ([5054aba](https://github.com/bfarka/opendraft/commit/5054abad826b16efaaeb0a3f88d5097ce553e37a))
+* **ble:** discover already-connected CoreBluetooth HR peripherals on macOS ([e9fea55](https://github.com/bfarka/opendraft/commit/e9fea5565db91f8757e6933b214a738ee853253f))
+
 ## [1.4.0](https://github.com/bfarka/opendraft/compare/v1.3.1...v1.4.0) (2026-11-21)
 
 
