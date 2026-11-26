@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/bfarka/opendraft/compare/v1.5.0...v1.6.0) (2026-11-26)
+
+
+### Features
+
+* add ANT+ heart rate monitor support alongside BLE ([7115220](https://github.com/bfarka/opendraft/commit/7115220cf3e0e4735ad4415f12b789bb0148867f))
+* add ANT+ heart rate monitor support alongside BLE ([7e308b0](https://github.com/bfarka/opendraft/commit/7e308b039702a9a093b8c75f4c001d25cba0a922))
+
+
+### Documentation
+
+* document ANT+ USB stick support and Raspberry Pi udev rule ([66a7a5a](https://github.com/bfarka/opendraft/commit/66a7a5a65c7a8efa3e10f908cd1ba3753eb24eb5))
+
 ## [1.5.0](https://github.com/bfarka/opendraft/compare/v1.4.1...v1.5.0) (2026-11-21)
 
 
