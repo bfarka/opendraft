@@ -396,7 +396,7 @@ func TestWebUIDiscoveryAndSelection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load saved config: %v", err)
 	}
-	if saved.BLEDeviceID != "hr-tickr-1" || saved.FanDeviceID != "shelly-dimmer-1" || saved.FanHost != "192.168.1.88:80" {
+	if saved.SavedHRDeviceID() != "hr-tickr-1" || saved.FanDeviceID != "shelly-dimmer-1" || saved.FanHost != "192.168.1.88:80" {
 		t.Fatalf("unexpected saved config: %+v", saved)
 	}
 	if syncCalls != 2 {
@@ -409,5 +409,52 @@ func TestWebUIDiscoveryAndSelection(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("POST /api/scan/stop status = %d, want 200", rec.Code)
+	}
+}
+
+type leadingEdgeStubFan struct {
+	stubFan
+	calls int
+	err   error
+}
+
+func (l *leadingEdgeStubFan) ConfigureLeadingEdge(_ context.Context) error {
+	l.calls++
+	return l.err
+}
+
+func TestSelectFanConfiguresLeadingEdge(t *testing.T) {
+	bridge, _, _, _ := newTestBridge(t)
+	fan := &leadingEdgeStubFan{}
+	bridge.SetHardware(nil, nil, func(dev domain.FanDevice) domain.FanController {
+		fan.dev = dev
+		return fan
+	})
+
+	bridge.mu.Lock()
+	bridge.discoveredFan = []domain.FanDevice{
+		{ID: "shellydimmer2-1", Name: "shellydimmer2-1 (Shelly)", IP: "192.168.1.90", Port: 80, Model: "shelly"},
+	}
+	bridge.mu.Unlock()
+
+	st, err := bridge.SelectFan("shellydimmer2-1")
+	if err != nil {
+		t.Fatalf("SelectFan failed: %v", err)
+	}
+	if fan.calls != 1 {
+		t.Fatalf("expected ConfigureLeadingEdge called once, got %d", fan.calls)
+	}
+	if st.ErrMsg != "" {
+		t.Fatalf("expected no error, got %q", st.ErrMsg)
+	}
+
+	// Non-fatal warning when ConfigureLeadingEdge returns an error.
+	fan.err = context.DeadlineExceeded
+	st, err = bridge.SelectFan("shellydimmer2-1")
+	if err != nil {
+		t.Fatalf("SelectFan should not fail on leading-edge warning: %v", err)
+	}
+	if !strings.Contains(st.ErrMsg, "Leading-edge mode warning") {
+		t.Fatalf("expected leading-edge warning in state error, got %q", st.ErrMsg)
 	}
 }

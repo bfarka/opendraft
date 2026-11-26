@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/bfarka/opendraft/internal/domain"
 )
 
 func (m Model) updateDiscoveryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -39,7 +43,7 @@ func (m Model) updateDiscoveryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "r":
 		m.errMsg = ""
-		m.statusMsg = "Rescanning BLE and Shelly mDNS..."
+		m.statusMsg = "Rescanning HR (BLE / ANT+) and Shelly mDNS..."
 		return m, startScansCmd(m.ctx, m.hrSource, m.fanDisc)
 
 	case "d":
@@ -54,15 +58,28 @@ func (m Model) updateDiscoveryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.activePane == paneDimmer && len(m.fanDevices) > 0 {
 			dev := m.fanDevices[m.fanCursor]
 			m.selectedFan = &dev
+			var cmd tea.Cmd
 			if m.fanFactory != nil {
 				m.fanCtrl = m.fanFactory(dev)
 				m.rebuildLoop()
+				if lec, ok := m.fanCtrl.(domain.LeadingEdgeConfigurer); ok {
+					parentCtx := m.ctx
+					if parentCtx == nil {
+						parentCtx = context.Background()
+					}
+					cmd = func() tea.Msg {
+						cfgCtx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+						defer cancel()
+						return fanLeadingEdgeMsg{err: lec.ConfigureLeadingEdge(cfgCtx)}
+					}
+				}
 			}
 			m.cfg.FanDeviceID = dev.ID
 			m.cfg.FanDeviceName = dev.Name
 			m.cfg.FanModel = dev.Model
 			m.cfg.FanHost = fmt.Sprintf("%s:%d", dev.IP, dev.Port)
 			m.saveConfig()
+			m.errMsg = ""
 			m.statusMsg = fmt.Sprintf("Selected Shelly: %s", dev.Name)
 			if m.webBridge != nil {
 				m.webBridge.SetDevices(m.selectedHR, m.selectedFan)
@@ -72,6 +89,7 @@ func (m Model) updateDiscoveryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.selectedHR != nil {
 				m.view = viewDashboard
 			}
+			return m, cmd
 		}
 	}
 
@@ -88,14 +106,14 @@ func (m Model) viewDiscoveryScreen() string {
 		paneWidth = (m.width - 6) / 2
 	}
 
-	bleTitle := "BLE Heart Rate Monitors"
+	bleTitle := "Heart Rate Monitors (BLE / ANT+)"
 	if m.bleScanning {
 		bleTitle += " (scanning...)"
 	}
 	var bleLines []string
 	bleLines = append(bleLines, bleTitle, "")
 	if len(m.bleDevices) == 0 {
-		bleLines = append(bleLines, mutedStyle.Render("No BLE HR devices found yet"))
+		bleLines = append(bleLines, mutedStyle.Render("No HR devices found yet"))
 	} else {
 		for i, d := range m.bleDevices {
 			prefix := "  "
@@ -111,7 +129,11 @@ func (m Model) viewDiscoveryScreen() string {
 					marker = " [connected]"
 				}
 			}
-			line := fmt.Sprintf("%s%s (%ddBm)%s", prefix, d.Name, d.RSSI, marker)
+			transportTag := ""
+			if d.Transport != "" {
+				transportTag = fmt.Sprintf("[%s] ", strings.ToUpper(d.Transport))
+			}
+			line := fmt.Sprintf("%s%s%s (%ddBm)%s", prefix, transportTag, d.Name, d.RSSI, marker)
 			if i == m.bleCursor && m.activePane == paneBLE {
 				line = selectedRowStyle.Render(line)
 			}

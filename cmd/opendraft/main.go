@@ -18,7 +18,9 @@ import (
 	"github.com/bfarka/opendraft/internal/control"
 	"github.com/bfarka/opendraft/internal/domain"
 	"github.com/bfarka/opendraft/internal/fan/shelly"
+	"github.com/bfarka/opendraft/internal/hr/ant"
 	"github.com/bfarka/opendraft/internal/hr/ble"
+	"github.com/bfarka/opendraft/internal/hr/multi"
 	"github.com/bfarka/opendraft/internal/tui"
 	"github.com/bfarka/opendraft/internal/web"
 )
@@ -94,8 +96,12 @@ func run(args []string) error {
 		}
 	} else {
 		bleSrc := ble.NewSource()
-		defer bleSrc.Close()
-		hrSource = bleSrc
+		antSrc := ant.NewSource()
+		hrSource = multi.New(
+			multi.NamedSource{Name: "ble", Source: bleSrc},
+			multi.NamedSource{Name: "ant", Source: antSrc},
+		)
+		defer hrSource.Close()
 		fanDisc = shelly.NewDiscoverer()
 		fanFactory = func(dev domain.FanDevice) domain.FanController {
 			return shelly.NewClient(dev)
@@ -275,12 +281,12 @@ func runHeadless(
 	bridge.Notify()
 
 	var hrCh <-chan domain.HRReading
-	targetHRID := cfg.BLEDeviceID
+	targetHRID := cfg.SavedHRDeviceID()
 	if useMock && targetHRID == "" {
 		targetHRID = "mock-tickr"
 	}
 	if targetHRID != "" && hrSource != nil {
-		hrDev := &domain.HRDevice{ID: targetHRID, Name: cfg.BLEDeviceName}
+		hrDev := &domain.HRDevice{ID: targetHRID, Name: cfg.SavedHRDeviceName()}
 		if hrDev.Name == "" {
 			hrDev.Name = targetHRID
 		}

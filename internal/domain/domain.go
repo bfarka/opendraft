@@ -5,11 +5,12 @@ import (
 	"time"
 )
 
-// HRDevice represents a discovered Bluetooth Low Energy heart rate monitor.
+// HRDevice represents a discovered heart rate monitor (e.g., BLE or ANT+).
 type HRDevice struct {
-	ID   string
-	Name string
-	RSSI int16
+	ID        string
+	Name      string
+	RSSI      int16
+	Transport string // "ble", "ant", or ""
 }
 
 // HRReading represents a single heart rate measurement in beats per minute.
@@ -46,6 +47,12 @@ type FanController interface {
 	SetSpeed(ctx context.Context, percent int) error
 	Off(ctx context.Context) error
 	Info() FanDevice
+}
+
+// LeadingEdgeConfigurer is an optional capability for phase-cut dimmers that
+// support switching to leading-edge mode to protect MOSFETs on inductive AC motor loads.
+type LeadingEdgeConfigurer interface {
+	ConfigureLeadingEdge(ctx context.Context) error
 }
 
 // SpeedMapper translates a heart rate (BPM) into a target fan speed percentage (0..100).

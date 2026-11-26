@@ -16,3 +16,5 @@ Use [`_template.md`](_template.md) when adding a new feature (`NNN-short-name.md
 | 006 | 120s HR Percentile Window & Dashboard Visualization | Implemented | [006-hr-percentile-window.md](006-hr-percentile-window.md) |
 | 007 | Local WebUI Dashboard & Control API | Implemented | [007-webui.md](007-webui.md) |
 | 008 | Display Application Version in UI | Implemented | [007-ui-version.md](007-ui-version.md) |
+| 009 | Shelly Leading-Edge Mode Protection | Implemented | [009-shelly-leading-edge.md](009-shelly-leading-edge.md) |
+| 010 | ANT+ Heart Rate Source | Implemented | [010-ant-plus-hr-source.md](010-ant-plus-hr-source.md) |

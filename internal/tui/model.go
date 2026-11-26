@@ -10,6 +10,7 @@ import (
 	"github.com/bfarka/opendraft/internal/config"
 	"github.com/bfarka/opendraft/internal/control"
 	"github.com/bfarka/opendraft/internal/domain"
+	"github.com/bfarka/opendraft/internal/hr/multi"
 	"github.com/bfarka/opendraft/internal/version"
 	"github.com/bfarka/opendraft/internal/web"
 )
@@ -39,6 +40,7 @@ type bleScanErrMsg struct{ err error }
 type fanDeviceMsg domain.FanDevice
 type fanScanDoneMsg struct{}
 type fanScanErrMsg struct{ err error }
+type fanLeadingEdgeMsg struct{ err error }
 
 type hrConnectedMsg struct {
 	dev    domain.HRDevice
@@ -136,7 +138,7 @@ func NewModel(
 		view:       viewDiscovery,
 		activePane: paneBLE,
 		loop:       control.NewLoop(mapper, nil),
-		statusMsg:  "Scanning for BLE HR monitors and Shelly Dimmers...",
+		statusMsg:  "Scanning for HR monitors (BLE / ANT+) and Shelly Dimmers...",
 	}
 	if cfg.HasSavedDevices() {
 		fanDev := cfg.SavedFanDevice()
@@ -146,9 +148,9 @@ func NewModel(
 			m.fanCtrl = fanFactory(fanDev)
 		}
 		m.loop = control.NewLoop(mapper, m.fanCtrl)
-		hrLabel := cfg.BLEDeviceName
+		hrLabel := cfg.SavedHRDeviceName()
 		if hrLabel == "" {
-			hrLabel = cfg.BLEDeviceID
+			hrLabel = cfg.SavedHRDeviceID()
 		}
 		m.statusMsg = fmt.Sprintf("Loaded saved devices; reconnecting to %s...", hrLabel)
 	}
@@ -325,7 +327,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case bleDeviceMsg:
 		dev := domain.HRDevice(msg)
 		m.bleDevices = append(m.bleDevices, dev)
-		if m.view == viewDashboard && m.selectedHR == nil && m.cfg.BLEDeviceID != "" && dev.ID == m.cfg.BLEDeviceID && m.hrSource != nil {
+		if m.view == viewDashboard && m.selectedHR == nil && multi.MatchDeviceID(m.cfg.SavedHRDeviceID(), dev.ID) && m.hrSource != nil {
 			m.statusMsg = fmt.Sprintf("Reconnecting to %s...", dev.Name)
 			return m, m.connectHR(dev)
 		}
@@ -363,8 +365,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selectedHR = &msg.dev
 		m.hrCh = msg.ch
 		m.hrCancel = msg.cancel
-		m.cfg.BLEDeviceID = msg.dev.ID
-		m.cfg.BLEDeviceName = msg.dev.Name
+		m.cfg.HRDeviceID = msg.dev.ID
+		m.cfg.HRDeviceName = msg.dev.Name
 		m.saveConfig()
 		m.errMsg = ""
 		m.statusMsg = fmt.Sprintf("Connected HR: %s", msg.dev.Name)
@@ -380,6 +382,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case hrConnectErrMsg:
 		m.errMsg = fmt.Sprintf("BLE connect: %v", msg.err)
+		return m, nil
+
+	case fanLeadingEdgeMsg:
+		if msg.err != nil {
+			m.errMsg = fmt.Sprintf("Leading-edge mode warning: %v", msg.err)
+			m.notifyWeb()
+		}
 		return m, nil
 
 	case hrReadingMsg:
