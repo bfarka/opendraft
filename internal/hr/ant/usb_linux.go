@@ -35,6 +35,8 @@ var antProductIDs = map[uint16]bool{
 const (
 	usbdevfsClaimInterface   uintptr = 0x8004550f // _IOR('U', 15, unsigned int)
 	usbdevfsReleaseInterface uintptr = 0x80045510 // _IOR('U', 16, unsigned int)
+	usbdevfsClearHalt        uintptr = 0x80045515 // _IOR('U', 21, unsigned int)
+	usbdevfsDisconnect       int32   = 0x00005516 // _IO('U', 22)
 )
 
 type usbdevfsBulkTransfer struct {
@@ -44,7 +46,16 @@ type usbdevfsBulkTransfer struct {
 	data    unsafe.Pointer
 }
 
-var usbdevfsBulkIoctl = uintptr(0xC0000000) | (unsafe.Sizeof(usbdevfsBulkTransfer{}) << 16) | (uintptr('U') << 8) | 2
+type usbdevfsIoctlCmd struct {
+	ifno      int32
+	ioctlCode int32
+	data      unsafe.Pointer
+}
+
+var (
+	usbdevfsBulkIoctl = uintptr(0xC0000000) | (unsafe.Sizeof(usbdevfsBulkTransfer{}) << 16) | (uintptr('U') << 8) | 2
+	usbdevfsIoctl     = uintptr(0xC0000000) | (unsafe.Sizeof(usbdevfsIoctlCmd{}) << 16) | (uintptr('U') << 8) | 18
+)
 
 type usbStickInfo struct {
 	devPath string
@@ -79,9 +90,25 @@ func OpenUSBStick(_ context.Context) (Transport, error) {
 
 	iface := uint32(0)
 	if err := ioctlPtr(f.Fd(), usbdevfsClaimInterface, unsafe.Pointer(&iface)); err != nil {
-		_ = f.Close()
-		return nil, fmt.Errorf("ant: claim USB interface on %s: %w", info.devPath, err)
+		if errors.Is(err, syscall.EBUSY) {
+			// Detach kernel driver (e.g. usb_serial_simple) and retry claim.
+			detach := usbdevfsIoctlCmd{
+				ifno:      int32(iface),
+				ioctlCode: usbdevfsDisconnect,
+			}
+			_ = ioctlPtr(f.Fd(), usbdevfsIoctl, unsafe.Pointer(&detach))
+			err = ioctlPtr(f.Fd(), usbdevfsClaimInterface, unsafe.Pointer(&iface))
+		}
+		if err != nil {
+			_ = f.Close()
+			return nil, fmt.Errorf("ant: claim USB interface on %s: %w", info.devPath, err)
+		}
 	}
+
+	epIn := info.epIn
+	epOut := info.epOut
+	_ = ioctlPtr(f.Fd(), usbdevfsClearHalt, unsafe.Pointer(&epIn))
+	_ = ioctlPtr(f.Fd(), usbdevfsClearHalt, unsafe.Pointer(&epOut))
 
 	return &usbfsTransport{
 		file:  f,
