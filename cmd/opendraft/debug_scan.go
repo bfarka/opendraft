@@ -9,11 +9,13 @@ import (
 	"github.com/grandcat/zeroconf"
 	"tinygo.org/x/bluetooth"
 
+	"github.com/bfarka/opendraft/internal/hr/ant"
 	"github.com/bfarka/opendraft/internal/hr/ble"
+	"github.com/bfarka/opendraft/internal/hr/multi"
 )
 
 func runDebugScan() error {
-	fmt.Println("Running 5s diagnostic scan (BLE + mDNS Shelly)...")
+	fmt.Println("Running 5s diagnostic scan (BLE + ANT+ + mDNS Shelly)...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -55,7 +57,24 @@ func runDebugScan() error {
 		}
 	}()
 
-	// 2. mDNS scan for Shelly (_http._tcp and _shelly._tcp)
+	// 2. ANT+ USB scan
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		antSrc := ant.NewSource()
+		defer antSrc.Close()
+		ch, err := antSrc.Scan(ctx)
+		if err != nil {
+			fmt.Printf("[ANT+] %v\n", err)
+			return
+		}
+		fmt.Println("[ANT+] USB stick opened, scanning for HR straps...")
+		for d := range ch {
+			fmt.Printf("[ANT+] id=%s name=%q rssi=%d\n", d.ID, d.Name, d.RSSI)
+		}
+	}()
+
+	// 3. mDNS scan for Shelly (_http._tcp and _shelly._tcp)
 	for _, svc := range []string{"_http._tcp", "_shelly._tcp"} {
 		wg.Add(1)
 		go func(service string) {
@@ -85,20 +104,23 @@ func runDebugScan() error {
 }
 
 func runDebugHR() error {
-	src := ble.NewSource()
+	src := multi.New(
+		multi.NamedSource{Name: "ble", Source: ble.NewSource()},
+		multi.NamedSource{Name: "ant", Source: ant.NewSource()},
+	)
 	defer src.Close()
 
 	scanCtx, scanCancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer scanCancel()
 
-	fmt.Println("[debug-hr] Scanning for BLE HR monitor...")
+	fmt.Println("[debug-hr] Scanning for HR monitor (BLE / ANT+)...")
 	ch, err := src.Scan(scanCtx)
 	if err != nil {
 		return fmt.Errorf("scan: %w", err)
 	}
 	dev, ok := <-ch
 	if !ok {
-		return fmt.Errorf("no BLE HR device found")
+		return fmt.Errorf("no HR device found")
 	}
 	scanCancel()
 	fmt.Printf("[debug-hr] Found %q (%s), connecting...\n", dev.Name, dev.ID)

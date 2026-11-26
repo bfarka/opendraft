@@ -419,9 +419,9 @@
     els.stopScanBtn.hidden = !anyScanning;
 
     if (anyScanning) {
-      els.scanStatusText.textContent = 'Scanning BLE & Shelly mDNS (15s)…';
+      els.scanStatusText.textContent = 'Scanning HR (BLE / ANT+) & Shelly mDNS (15s)…';
     } else {
-      els.scanStatusText.textContent = 'Scan for nearby BLE heart rate straps and Shelly dimmers on your LAN.';
+      els.scanStatusText.textContent = 'Scan for nearby BLE / ANT+ heart rate straps and Shelly dimmers on your LAN.';
     }
 
     setBadge(els.discHrBadge, bleScanning ? 'Scanning…' : 'Idle', bleScanning ? 'brand' : 'muted');
@@ -438,7 +438,7 @@
     } else if (hrs.length === 0) {
       const li = document.createElement('li');
       li.className = 'discovery-empty';
-      li.textContent = bleScanning ? 'Listening for BLE heart rate advertisements…' : 'No BLE heart rate monitors found yet.';
+      li.textContent = bleScanning ? 'Listening for BLE / ANT+ heart rate sensors…' : 'No HR monitors found yet.';
       els.discHrList.appendChild(li);
     } else {
       for (const dev of hrs) {
@@ -452,7 +452,8 @@
         nameEl.textContent = dev.name || dev.id;
         const metaEl = document.createElement('span');
         metaEl.className = 'discovery-item-meta';
-        metaEl.textContent = `${dev.rssi} dBm`;
+        const transportLabel = dev.transport ? `[${dev.transport.toUpperCase()}] ` : '';
+        metaEl.textContent = `${transportLabel}${dev.rssi} dBm`;
         info.append(nameEl, metaEl);
         li.appendChild(info);
 

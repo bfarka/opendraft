@@ -2,7 +2,7 @@
 
 An open-source, poor man's Wahoo Headwind alternative implemented in Go.
 
-`opendraft` reads live heart rate (BPM) from a Bluetooth Low Energy (BLE) chest/arm strap (such as a Wahoo TICKR / TICKR FIT) and dynamically adjusts the speed of an indoor cycling fan via a **Shelly Dimmer 2** on your local Wi-Fi network—with zero cloud dependencies.
+`opendraft` reads live heart rate (BPM) from a Bluetooth Low Energy (BLE) or ANT+ chest/arm strap (such as a Wahoo TICKR / TICKR FIT or Garmin HRM) and dynamically adjusts the speed of an indoor cycling fan via a **Shelly Dimmer 2** on your local Wi-Fi network—with zero cloud dependencies.
 
 > [!CAUTION]
 > **DANGER TO LIFE — HIGH VOLTAGE / MAINS ELECTRICITY & NO LIABILITY**
@@ -16,7 +16,7 @@ An open-source, poor man's Wahoo Headwind alternative implemented in Go.
 
 ## Features
 
-- **BLE Heart Rate Monitoring:** Discovers BLE peripherals advertising the standard GATT Heart Rate Service (`0x180D` / `0x2A37`), tested with Wahoo TICKR FIT on macOS.
+- **BLE & ANT+ Heart Rate Monitoring:** Discovers BLE peripherals advertising the standard GATT Heart Rate Service (`0x180D` / `0x2A37`) as well as ANT+ HR straps via a USB ANT+ stick (`0fcf:1008` / `0fcf:1009`) on Linux/Raspberry Pi (pure-Go `usbfs`, no `libusb`/CGo required). See [docs/setup.md](docs/setup.md) for the Raspberry Pi `udev` rule.
 - **Shelly Dimmer 2 Local Control:** Discovers Shelly devices on your WLAN via mDNS (`_http._tcp` / `_shelly._tcp`) and controls brightness (`0–100%`) over local HTTP (`/light/0`, with Gen2 `/rpc/Light.Set` fallback)—no cloud or API keys required.
 - **HR-to-Fan Control Loop:**
   - Explicit **START FAN** / **STOP FAN** control (stays off until you start, even while previewing live BPM).

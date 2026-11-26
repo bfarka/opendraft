@@ -46,3 +46,64 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		t.Fatalf("round-trip mismatch: want %+v, got %+v", want, got)
 	}
 }
+
+func TestSavedHRDeviceFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      Config
+		wantID   string
+		wantName string
+		wantSave bool
+	}{
+		{
+			name: "new hr fields take precedence",
+			cfg: Config{
+				HRDeviceID:    "ant:12345",
+				HRDeviceName:  "ANT+ HR 12345",
+				BLEDeviceID:   "AA:BB:CC:DD:EE:FF",
+				BLEDeviceName: "Legacy TICKR",
+				FanDeviceID:   "fan-1",
+				FanHost:       "192.168.1.10:80",
+			},
+			wantID:   "ant:12345",
+			wantName: "ANT+ HR 12345",
+			wantSave: true,
+		},
+		{
+			name: "legacy ble fields fallback",
+			cfg: Config{
+				BLEDeviceID:   "AA:BB:CC:DD:EE:FF",
+				BLEDeviceName: "Legacy TICKR",
+				FanDeviceID:   "fan-1",
+				FanHost:       "192.168.1.10:80",
+			},
+			wantID:   "AA:BB:CC:DD:EE:FF",
+			wantName: "Legacy TICKR",
+			wantSave: true,
+		},
+		{
+			name: "missing hr device",
+			cfg: Config{
+				FanDeviceID: "fan-1",
+				FanHost:     "192.168.1.10:80",
+			},
+			wantID:   "",
+			wantName: "",
+			wantSave: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.cfg.SavedHRDeviceID(); got != tc.wantID {
+				t.Errorf("SavedHRDeviceID() = %q, want %q", got, tc.wantID)
+			}
+			if got := tc.cfg.SavedHRDeviceName(); got != tc.wantName {
+				t.Errorf("SavedHRDeviceName() = %q, want %q", got, tc.wantName)
+			}
+			if got := tc.cfg.HasSavedDevices(); got != tc.wantSave {
+				t.Errorf("HasSavedDevices() = %v, want %v", got, tc.wantSave)
+			}
+		})
+	}
+}

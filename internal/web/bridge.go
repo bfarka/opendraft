@@ -32,11 +32,12 @@ type DeviceInfo struct {
 	Model string `json:"model,omitempty"`
 }
 
-// DiscoveredHR describes a BLE heart rate monitor found during scanning.
+// DiscoveredHR describes a heart rate monitor found during scanning.
 type DiscoveredHR struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	RSSI int16  `json:"rssi"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	RSSI      int16  `json:"rssi"`
+	Transport string `json:"transport,omitempty"`
 }
 
 // DiscoveredFan describes a Shelly dimmer found during mDNS scanning.
@@ -197,7 +198,7 @@ func (b *Bridge) Snapshot() State {
 		if name == "" {
 			name = d.ID
 		}
-		discHR[i] = DiscoveredHR{ID: d.ID, Name: name, RSSI: d.RSSI}
+		discHR[i] = DiscoveredHR{ID: d.ID, Name: name, RSSI: d.RSSI, Transport: d.Transport}
 	}
 	discFan := make([]DiscoveredFan, len(b.discoveredFan))
 	for i, d := range b.discoveredFan {
@@ -651,8 +652,8 @@ func (b *Bridge) ConnectHR(id string) (State, error) {
 	b.hrStreamCancel = cancel
 	cp := dev
 	b.hrDev = &cp
-	b.cfg.BLEDeviceID = dev.ID
-	b.cfg.BLEDeviceName = dev.Name
+	b.cfg.HRDeviceID = dev.ID
+	b.cfg.HRDeviceName = dev.Name
 	b.errMsg = ""
 	b.statusMsg = fmt.Sprintf("Connected HR: %s", dev.Name)
 	cfg := b.cfg
@@ -723,11 +724,22 @@ func (b *Bridge) SelectFan(id string) (State, error) {
 		return State{}, fmt.Errorf("fan device %q not found in discovery results", id)
 	}
 	factory := b.fanFactory
+	parentCtx := b.ctx
 	b.mu.Unlock()
 
 	var fanCtrl domain.FanController
 	if factory != nil {
 		fanCtrl = factory(dev)
+	}
+
+	var leadingEdgeErr error
+	if lec, ok := fanCtrl.(domain.LeadingEdgeConfigurer); ok {
+		if parentCtx == nil {
+			parentCtx = context.Background()
+		}
+		cfgCtx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
+		leadingEdgeErr = lec.ConfigureLeadingEdge(cfgCtx)
+		cancel()
 	}
 
 	b.mu.Lock()
@@ -747,7 +759,11 @@ func (b *Bridge) SelectFan(id string) (State, error) {
 	if name == "" {
 		name = dev.ID
 	}
-	b.errMsg = ""
+	if leadingEdgeErr != nil {
+		b.errMsg = fmt.Sprintf("Leading-edge mode warning: %v", leadingEdgeErr)
+	} else {
+		b.errMsg = ""
+	}
 	b.statusMsg = fmt.Sprintf("Selected Shelly: %s", name)
 	cfg := b.cfg
 	cfgPath := b.cfgPath

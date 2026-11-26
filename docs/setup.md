@@ -29,12 +29,18 @@ flowchart LR
 
 ## Hardware & Software Checklist
 
-1. **BLE Heart Rate Monitor** (e.g., Wahoo TICKR / TICKR FIT)
-   - Make sure the strap is awake/worn so it actively advertises BLE (`0x180D`).
+1. **Heart Rate Monitor (BLE or ANT+)** (e.g., Wahoo TICKR / TICKR FIT, Garmin HRM)
+   - Make sure the strap is awake/worn so it actively advertises BLE (`0x180D`) or ANT+.
    - On **macOS**, grant **Bluetooth** permission to your terminal app under *System Settings → Privacy & Security → Bluetooth*.
+   - On **Linux / Raspberry Pi with an ANT+ USB stick** (Dynastream/Garmin `0fcf:1008` / `0fcf:1009`), add a udev rule so `opendraft` can access the USB stick without `sudo`:
+     ```sh
+     echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="0fcf", MODE="0666"' | sudo tee /etc/udev/rules.d/99-ant-usb.rules
+     sudo udevadm control --reload-rules && sudo udevadm trigger
+     ```
 2. **Shelly Dimmer 2** (connected to your Wi-Fi network)
    - Wired safely by a qualified electrician between mains power and a dimmer-compatible fan.
    - Configured on your local Wi-Fi network (and reachable on port `80` from the computer running `opendraft`).
+   - **Leading-Edge MOSFET Protection (`pulse_mode=1`):** AC fan motors are inductive loads. When you select a Shelly Dimmer 2 in `opendraft` (TUI or WebUI), `opendraft` automatically sends `/settings?pulse_mode=1` to switch Gen1 Shelly Dimmer 2 devices to **Leading Edge** mode, preventing inductive turn-off voltage spikes from stressing the MOSFETs. (You can also verify this in the Shelly Web UI under **Settings → Calibration**.)
    - **Important — Minimum Brightness / Starting Torque:** Many AC fans will not start spinning at `5%`–`15%`. Test with `+` in `MANUAL` mode (or in the Shelly web UI) to find the lowest percentage where your fan reliably starts spinning, and set **Entry Fan %** (`c` on the Dashboard) to at least that value (default is `15%`).
 3. **Network / mDNS**
    - Your computer and Shelly Dimmer 2 should be reachable over LAN/WLAN (ideally on the same subnet so mDNS `_http._tcp` discovers it automatically).

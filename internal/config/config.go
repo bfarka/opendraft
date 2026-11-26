@@ -14,6 +14,8 @@ import (
 
 // Config holds persisted device selections and HR-to-fan curve settings.
 type Config struct {
+	HRDeviceID    string `json:"hr_device_id,omitempty"`
+	HRDeviceName  string `json:"hr_device_name,omitempty"`
 	BLEDeviceID   string `json:"ble_device_id,omitempty"`
 	BLEDeviceName string `json:"ble_device_name,omitempty"`
 	FanDeviceID   string `json:"fan_device_id,omitempty"`
@@ -29,9 +31,25 @@ type Config struct {
 	WebPort       int    `json:"web_port"`
 }
 
-// HasSavedDevices reports whether both a BLE HR device and a fan dimmer are saved.
+// SavedHRDeviceID returns the persisted HR device ID, falling back to legacy BLEDeviceID.
+func (c Config) SavedHRDeviceID() string {
+	if c.HRDeviceID != "" {
+		return c.HRDeviceID
+	}
+	return c.BLEDeviceID
+}
+
+// SavedHRDeviceName returns the persisted HR device name, falling back to legacy BLEDeviceName.
+func (c Config) SavedHRDeviceName() string {
+	if c.HRDeviceName != "" {
+		return c.HRDeviceName
+	}
+	return c.BLEDeviceName
+}
+
+// HasSavedDevices reports whether both an HR device and a fan dimmer are saved.
 func (c Config) HasSavedDevices() bool {
-	return c.BLEDeviceID != "" && c.FanDeviceID != "" && c.FanHost != ""
+	return c.SavedHRDeviceID() != "" && c.FanDeviceID != "" && c.FanHost != ""
 }
 
 // SavedFanDevice reconstructs a domain.FanDevice from the persisted config fields.
